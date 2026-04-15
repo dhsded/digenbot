@@ -1,0 +1,12 @@
+{
+  "name": "gerador-digen",
+  "version": "1.0.0",
+  "description": "Automated DIGEN generation tool",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^29.4.6"
+  }
+}
