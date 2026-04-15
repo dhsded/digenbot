@@ -1,7 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
-    queueTask: (taskData) => ipcRenderer.send('queue-task', taskData),
-    switchTab: (tabName) => ipcRenderer.send('switch-tab', tabName),
+    queueTask: (data) => ipcRenderer.send('queue-task', data),
+    switchTab: (tabId) => ipcRenderer.send('switch-tab', tabId),
+    stopQueue: () => ipcRenderer.send('stop-queue'),
     onStatusUpdate: (callback) => ipcRenderer.on('ui-status-update', (event, data) => callback(data))
 });

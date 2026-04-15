@@ -29,6 +29,12 @@ function createWindow() {
 
   digenView.webContents.loadURL('https://digen.ai/create');
 
+  // Block popups and new windows. Force them to open in the current tab.
+  digenView.webContents.setWindowOpenHandler(({ url }) => {
+    digenView.webContents.loadURL(url);
+    return { action: 'deny' };
+  });
+
   // Handle Tab Switching with BrowserView
   ipcMain.on('switch-tab', (event, tab) => {
     if (tab === 'digen') {
@@ -51,6 +57,22 @@ function createWindow() {
   ipcMain.on('digen-status-update', (event, statusMsg) => {
     if (uiWindow) {
       uiWindow.webContents.send('ui-status-update', statusMsg);
+    }
+  });
+
+  ipcMain.on('stop-queue', () => {
+    if (digenView) {
+      digenView.webContents.send('execute-stop-queue');
+    }
+  });
+
+  // Spy function to dump DOM for Antigravity
+  ipcMain.on('dump-dom', (event, html) => {
+    try {
+      require('fs').writeFileSync(path.join(__dirname, '..', 'digen_dom_spy.html'), html, 'utf-8');
+      console.log("DOM extraído e salvo com sucesso!");
+    } catch(e) {
+      console.error("Falha ao salvar DOM", e);
     }
   });
 }

@@ -27,6 +27,9 @@ document.getElementById('queueBtn').addEventListener('click', () => {
     const promptEl = document.getElementById('promptInput');
     const promptText = promptEl.value.trim();
     
+    // Get the selected mode
+    const mode = document.querySelector('input[name="genMode"]:checked').value;
+    
     if (!promptText) return;
 
     const taskId = `task_${Date.now()}_${++taskCounter}`;
@@ -34,6 +37,7 @@ document.getElementById('queueBtn').addEventListener('click', () => {
     const taskData = {
         id: taskId,
         prompt: promptText,
+        type: mode,
         status: 'queued'
     };
 
@@ -43,6 +47,38 @@ document.getElementById('queueBtn').addEventListener('click', () => {
     window.api.queueTask(taskData);
     
     promptEl.value = '';
+});
+
+// === Stop Execution ===
+document.getElementById('stopBtn').addEventListener('click', () => {
+    window.api.stopQueue();
+    // Update local UI
+    const queuedItems = document.querySelectorAll('.task-item');
+    queuedItems.forEach(item => {
+        if (!item.classList.contains('completed')) {
+            item.className = 'task-item cancelled';
+            item.style.borderColor = '#ff4d4f';
+            
+            const badgeId = item.id.replace('task_', 'badge_task_');
+            const msgId = item.id.replace('task_', 'msg_task_');
+            
+            const badge = document.getElementById(badgeId);
+            if (badge) {
+                badge.className = 'status-badge';
+                badge.style.background = '#ff4d4f';
+                badge.innerText = 'X Cancelado';
+            }
+            
+            const msg = document.getElementById(msgId);
+            if (msg) msg.innerText = 'Execução interrompida.';
+        }
+    });
+});
+
+// === Clear Queue ===
+document.getElementById('clearBtn').addEventListener('click', () => {
+    const list = document.getElementById('taskList');
+    list.innerHTML = '';
 });
 
 function addTaskToUI(task) {

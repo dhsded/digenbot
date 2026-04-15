@@ -1,18 +1,37 @@
 const { ipcRenderer } = require('electron');
 
 let isProcessing = false;
-const taskQueue = [];
+let taskQueue = [];
+let cancelFlag = false;
+
+// Enviar o código da página logo que ela carrega para eu (IA) ler
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        ipcRenderer.send('dump-dom', document.documentElement.outerHTML);
+    }, 5000); // Wait 5s for react apps to fully render
+});
 
 ipcRenderer.on('execute-digen-task', (event, taskData) => {
     console.log("Received DIGEN task:", taskData);
     taskQueue.push(taskData);
-    processQueue();
+    if (!isProcessing) {
+        processQueue();
+    }
+});
+
+ipcRenderer.on('execute-stop-queue', () => {
+    taskQueue = [];
+    cancelFlag = true;
 });
 
 async function processQueue() {
-    if (isProcessing || taskQueue.length === 0) return;
-    isProcessing = true;
+    if (taskQueue.length === 0) {
+        isProcessing = false;
+        return;
+    }
 
+    isProcessing = true;
+    cancelFlag = false;
     const task = taskQueue.shift();
     
     const updateStatus = (status, msg) => {
@@ -22,32 +41,111 @@ async function processQueue() {
     try {
         updateStatus('running', 'Iniciando automação no DIGEN...');
         
+        // Ensure we are on the right URL
+        if (!window.location.href.includes('/create')) {
+             updateStatus('running', 'Redirecionando para a área de criação...');
+             window.location.href = 'https://digen.ai/create';
+             await new Promise(r => setTimeout(r, 8000));
+        }
+        
+        if (cancelFlag) throw new Error("Cancelado");
+
+        // Navigate to Sub-engine (Image or Video)
+        if (task.type === 'image') {
+            updateStatus('running', 'Alternando para o Gerador de Imagens...');
+            const imageSpan = Array.from(document.querySelectorAll('span')).find(s => s.textContent.trim() === 'Image');
+            if (imageSpan) imageSpan.click();
+            await new Promise(r => setTimeout(r, 2000));
+        } else {
+            updateStatus('running', 'Alternando para o Gerador de Vídeos...');
+            const videoSpan = Array.from(document.querySelectorAll('span')).find(s => s.textContent.trim() === 'Video');
+            if (videoSpan) videoSpan.click();
+            await new Promise(r => setTimeout(r, 2000));
+        }
+
+        if (cancelFlag) throw new Error("Cancelado");
+
         // Wait for page to be fully loaded with basic elements
         await new Promise(r => setTimeout(r, 2000));
 
-        // Attempting to match classes or placeholders typical in these AI GUIs based on user img
         updateStatus('running', 'Procurando área de texto do prompt...');
-        const textarea = await waitForElement('textarea', 10000);
+        // Let's find any visible input field (tiptap div OR textarea)
+        updateStatus('running', 'Procurando área de texto do prompt...');
         
-        if (!textarea) {
-            throw new Error("Textarea não encontrada. Faça o login se necessário.");
+        let inputField = null;
+        let elapsedSearch = 0;
+        while(elapsedSearch < 15000 && !cancelFlag) {
+            // Look for Tiptap first, then standard Textarea, then generic contenteditable
+            let el = document.querySelector('.tiptap.ProseMirror[contenteditable="true"]');
+            if (!el) el = document.querySelector('textarea');
+            if (!el) Array.from(document.querySelectorAll('[contenteditable="true"]')).find(e => e.offsetHeight > 0);
+            
+            if (el && el.offsetHeight > 0) {
+                inputField = el;
+                break;
+            }
+            await new Promise(r => setTimeout(r, 500));
+            elapsedSearch += 500;
+        }
+        
+        if (cancelFlag) throw new Error("Cancelado");
+
+        if (!inputField) {
+            updateStatus('running', 'Debug: Campo não encontrado. URL: ' + window.location.href);
+            throw new Error("Textarea não encontrada na URL atual.");
         }
 
-        // Injecting text using native setter to bypass React state masking
-        updateStatus('running', 'Injetando prompt de forma nativa...');
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-        nativeInputValueSetter.call(textarea, task.prompt);
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        updateStatus('running', 'Injetando prompt...');
         
-        // Wait briefly for UI to register the typed text
-        await new Promise(r => setTimeout(r, 1000));
+        try {
+            inputField.focus();
+            document.execCommand('selectAll', false, null);
+            document.execCommand('insertText', false, task.prompt);
+            
+        // Fallback de segurança usando eventos sintéticos para Vue 3 se não reagir
+        if(inputField.tagName.toLowerCase() === 'textarea') {
+            inputField.value = task.prompt;
+            inputField.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+            inputField.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+        }
+        } catch(err) {
+            console.error("Injection error", err);
+        }
 
-        updateStatus('running', 'Buscando botão "Gerar vídeo"...');
-        const btnGerar = await waitForElementByText('button', 'Gerar vídeo', 5000);
+        // Wait briefly for UI to register the typed text (Vue 3 reactivity delay)
+        await new Promise(r => setTimeout(r, 1500));
+
+        if (cancelFlag) throw new Error("Cancelado");
+
+        // Force a robust search for Generate Button since it's sometimes a span or deep element
+        updateStatus('running', 'Iniciando Geração...');
+        let btnGerar = null;
+        for (let i = 0; i < 15; i++) {
+            if (cancelFlag) throw new Error("Cancelado");
+            
+            const elements = Array.from(document.querySelectorAll('span, button, div'));
+            const matches = elements.filter(el => {
+                // Must have text and no huge children branches
+                if (el.children.length > 2) return false; 
+                const txt = el.textContent ? el.textContent.trim().toLowerCase() : '';
+                return txt === 'gerar vídeo' || txt.includes('fazer um vídeo') || txt === 'gerar' || txt === 'generate';
+            });
+            
+            // Prefer button over span if multiple exist
+            btnGerar = matches.find(el => el.tagName === 'BUTTON') || matches[0];
+            
+            if (btnGerar) {
+                 const parentBtn = btnGerar.closest('button') || btnGerar.closest('.cursor-pointer');
+                 btnGerar = parentBtn || btnGerar;
+                 break;
+            }
+            await new Promise(r => setTimeout(r, 500));
+        }
+        
+        if (cancelFlag) throw new Error("Cancelado");
         
         if (!btnGerar) {
-            updateStatus('running', 'Botão "Gerar vídeo" não encontrado. Testando simulado...');
-            // if not logged in or prompt invalid, we simulate the completion for this demo block
+            updateStatus('running', 'Botão de geração não encontrado. Simulando finalização...');
             await new Promise(r => setTimeout(r, 2000));
         } else {
             updateStatus('running', 'Enviando comando de geração...');
@@ -55,33 +153,51 @@ async function processQueue() {
             await new Promise(r => setTimeout(r, 1500));
         }
 
-        updateStatus('completed', 'Comando concluído e enviado.');
-    } catch(err) {
-        console.error(err);
-        updateStatus('running', 'Aviso: ' + err.message); 
-    } finally {
-        isProcessing = false;
+        updateStatus('running', 'Deixando a fila seguir...');
+        await new Promise(r => setTimeout(r, 5000));
+
+        if (!cancelFlag) {
+            updateStatus('completed', 'Finalizado');
+        } else {
+            updateStatus('cancelled', 'Cancelado');
+        }
+
+    } catch (e) {
+        if (e.message === "Cancelado") {
+            updateStatus('cancelled', 'Cancelado pelo Usuário.');
+        } else {
+            updateStatus('failed', 'Erro: ' + e.message);
+        }
+    }
+
+    if (!cancelFlag) {
         processQueue();
+    } else {
+        isProcessing = false;
     }
 }
 
 // Helper: wait for element
-function waitForElement(selector, timeout = 5000) {
+function waitForElement(selector, timeout) {
     return new Promise((resolve) => {
-        if (document.querySelector(selector)) return resolve(document.querySelector(selector));
-        
-        const observer = new MutationObserver(mutations => {
-            if (document.querySelector(selector)) {
-                observer.disconnect();
-                resolve(document.querySelector(selector));
+        let elapsed = 0;
+        const interval = setInterval(() => {
+            if (cancelFlag) {
+                clearInterval(interval);
+                resolve(null);
+                return;
             }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-        
-        setTimeout(() => {
-            observer.disconnect();
-            resolve(null);
-        }, timeout);
+            const el = document.querySelector(selector);
+            if (el) {
+                clearInterval(interval);
+                resolve(el);
+            }
+            elapsed += 500;
+            if (elapsed >= timeout) {
+                clearInterval(interval);
+                resolve(null);
+            }
+        }, 500);
     });
 }
 
