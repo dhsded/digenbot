@@ -7,15 +7,39 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0f1115;
-            --surface: rgba(25, 28, 35, 0.6);
-            --surface-border: rgba(255, 255, 255, 0.08);
-            --primary: #9d4edd;
-            --primary-hover: #7b2cbf;
-            --text-main: #f8f9fa;
-            --text-muted: #adb5bd;
-            --success: #2d6a4f;
-            --warning: #b7b7a4;
+            /* Melhorado o Dark (Padrão) para ser mais legível */
+            --bg-color: #1a1e27; 
+            --surface: rgba(36, 42, 54, 0.85); 
+            --surface-border: rgba(255, 255, 255, 0.12);
+            --primary: #3b82f6; 
+            --primary-hover: #2563eb;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --input-bg: rgba(0,0,0,0.25);
+            --topbar-bg: rgba(0, 0, 0, 0.5);
+            --active-tab-bg: rgba(255, 255, 255, 0.08);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            --bg-gradient: radial-gradient(circle at 15% 10%, #273040 0%, var(--bg-color) 60%);
+        }
+
+        [data-theme="light"] {
+            /* Novo Tema Claro (Mais Suave e Agradável) */
+            --bg-color: #d1d5db; 
+            --surface: rgba(243, 244, 246, 0.95);
+            --surface-border: rgba(0, 0, 0, 0.15);
+            --primary: #0284c7; 
+            --primary-hover: #0369a1;
+            --text-main: #1f2937;
+            --text-muted: #4b5563;
+            --success: #059669;
+            --warning: #d97706;
+            --input-bg: rgba(255, 255, 255, 0.7);
+            --topbar-bg: #ffffff;
+            --active-tab-bg: #e2e8f0;
+            --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            --bg-gradient: radial-gradient(circle at 15% 10%, #e5e7eb 0%, var(--bg-color) 80%);
         }
 
         * {
@@ -31,7 +55,7 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            background: radial-gradient(circle at top left, #240046, #0f1115 60%);
+            background: var(--bg-gradient);
             overflow: hidden; /* Stop whole body scroll so tab height is stable */
         }
 
@@ -41,7 +65,7 @@
             display: flex;
             align-items: center;
             padding: 0 20px;
-            background: rgba(0,0,0,0.5);
+            background: var(--topbar-bg);
             border-bottom: 1px solid var(--surface-border);
             backdrop-filter: blur(10px);
             gap: 20px;
@@ -52,33 +76,29 @@
             background: transparent;
             color: var(--text-muted);
             border: none;
-            padding: 10px 15px;
-            font-weight: 600;
+            padding: 8px 16px;
+            font-weight: 500;
             font-size: 14px;
             cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            box-shadow: none;
-            width: auto;
+            border-radius: 6px;
+            transition: all 0.2s ease;
         }
 
         .tab-btn.active {
-            background: rgba(157, 78, 221, 0.2);
+            background: var(--active-tab-bg);
             color: var(--text-main);
-            border: 1px solid rgba(157, 78, 221, 0.4);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .tab-btn:hover:not(.active) {
-            background: rgba(255,255,255,0.05);
-            color: white;
-            transform: translateY(0); /* remove global button hover transform for tabs */
-            box-shadow: none;
+            color: var(--text-main);
         }
 
         /* Main Content Container */
         .content-area {
             flex: 1;
-            padding: 20px;
+            padding: 15px 20px;
+            padding-bottom: 35px; /* space for footer */
             overflow-y: auto;
             display: flex;
             flex-direction: column;
@@ -90,9 +110,9 @@
 
         h1 {
             font-weight: 800;
-            font-size: 24px;
-            margin-bottom: 20px;
-            background: linear-gradient(90deg, #e0aaff, #9d4edd);
+            font-size: 20px;
+            margin-bottom: 14px;
+            background: linear-gradient(90deg, #93c5fd, #3b82f6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -101,13 +121,13 @@
             background: var(--surface);
             backdrop-filter: blur(12px);
             border: 1px solid var(--surface-border);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            max-width: 800px;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 15px;
+            box-shadow: var(--glass-shadow);
+            max-width: 900px;
             width: 100%;
-            align-self: center; /* Center panels horizontally if big monitor */
+            align-self: center;
         }
 
         .form-group {
@@ -125,14 +145,14 @@
 
         textarea {
             width: 100%;
-            height: 100px;
-            border-radius: 10px;
-            background: rgba(0,0,0,0.3);
+            height: 70px;
+            border-radius: 8px;
+            background: var(--input-bg);
             border: 1px solid var(--surface-border);
-            color: white;
-            padding: 12px;
+            color: var(--text-main);
+            padding: 10px;
             resize: none;
-            font-size: 14px;
+            font-size: 13px;
             transition: border-color 0.3s;
         }
 
@@ -141,82 +161,167 @@
             border-color: var(--primary);
         }
 
-        .btn-stop {
-            background: rgba(255, 77, 79, 0.2);
-            color: #ff4d4f;
-            border: 1px solid #ff4d4f;
+        .queue-item {
+            background: var(--input-bg);
+            border: 1px solid var(--surface-border);
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            position: relative;
+        }
+
+        .batch-preview-grid {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 0;
+            margin-top: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) transparent;
+        }
+        
+        .batch-preview-grid::-webkit-scrollbar { height: 6px; }
+        .batch-preview-grid::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 6px; }
+
+        .batch-thumbnail {
+            width: 60px;
+            height: 60px;
             border-radius: 6px;
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: bold;
+            object-fit: cover;
+            border: 1px solid var(--surface-border);
+            flex-shrink: 0;
+            transition: transform 0.2s;
+        }
+        .batch-thumbnail:hover {
+            transform: scale(1.05);
+            border-color: var(--primary);
+        }
+
+        /* Toggle Switch Corporate */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-switch .slider {
+            position: absolute;
             cursor: pointer;
-            transition: all 0.3s;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255,255,255,0.1);
+            transition: .3s;
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .toggle-switch .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px; width: 16px;
+            left: 3px; bottom: 3px;
+            background-color: var(--text-muted);
+            transition: .3s;
+            border-radius: 50%;
+        }
+        .toggle-switch input:checked + .slider {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+        .toggle-switch input:checked + .slider:before {
+            transform: translateX(20px);
+            background-color: white;
+        }
+
+        .btn-stop {
+            background: #ef4444; 
+            color: white;
+            border: 1px solid #dc2626;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
         }
 
         .btn-stop:hover {
-            background: #ff4d4f;
-            color: white;
-            box-shadow: 0 0 10px rgba(255, 77, 79, 0.4);
+            background: #dc2626;
         }
 
         .btn-clear {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ddd;
-            border: 1px solid #555;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid var(--surface-border);
             border-radius: 6px;
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: bold;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s;
         }
 
         .btn-clear:hover {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border-color: #777;
+            background: rgba(255, 255, 255, 0.1);
         }
 
         .mode-selector {
             display: flex;
-            gap: 15px;
+            gap: 4px;
             margin-bottom: 12px;
-            background: rgba(0,0,0,0.3);
-            padding: 10px;
+            background: var(--input-bg);
+            padding: 4px;
             border-radius: 8px;
             border: 1px solid var(--surface-border);
         }
 
         .mode-selector label {
+            flex: 1;
             display: flex;
             align-items: center;
-            gap: 6px;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
-            color: white;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+
+        .mode-selector input[type="radio"] {
+            display: none;
+        }
+
+        .mode-selector label:has(input:checked) {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         .action-btn {
-            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            background: var(--primary);
             color: white;
-            border: none;
-            border-radius: 10px;
+            border: 1px solid var(--primary-hover);
+            border-radius: 8px;
             padding: 12px 24px;
             font-weight: 600;
             font-size: 14px;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: background-color 0.15s, border-color 0.15s;
             width: 100%;
-            box-shadow: 0 4px 15px rgba(157, 78, 221, 0.3);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
 
         .action-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(157, 78, 221, 0.5);
+            background: var(--primary-hover);
+            border-color: var(--primary);
         }
 
         .action-btn:active {
-            transform: translateY(0);
+            transform: scale(0.98);
         }
 
         .queue-header {
@@ -240,7 +345,7 @@
         .task-list::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
 
         .task-item {
-            background: rgba(0,0,0,0.4);
+            background: var(--input-bg);
             border: 1px solid var(--surface-border);
             border-radius: 8px;
             padding: 12px;
@@ -297,27 +402,183 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        .styled-input, .styled-select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            background: var(--input-bg);
+            border: 1px solid var(--surface-border);
+            color: var(--text-main);
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .styled-input:focus, .styled-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .styled-select option {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+        }
+        .character-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+            justify-content: start;
+        }
+        .char-card {
+            background: var(--input-bg);
+            border: 1px solid var(--surface-border);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            width: 140px;
+            flex-shrink: 0;
+        }
+        .char-card img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .char-card .char-name { font-size: 14px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; }
+        .btn-delete-char {
+            background: transparent;
+            color: #ef4444;
+            border: 1px solid #ef4444;
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+        }
+        .btn-delete-char:hover {
+            background: #ef4444;
+            color: white;
+        }
+
     </style>
 </head>
 <body>
 
     <div class="top-bar">
-        <button class="tab-btn active" id="tabPanel">⚙️ Painel de Filas</button>
-        <button class="tab-btn" id="tabDigen">🌐 Navegador DIGEN</button>
+        <button class="tab-btn active" id="tabPanel">⚙️ Painel Central</button>
+        <button class="tab-btn" id="tabCharacters">👤 Cofre de Personagens</button>
+        <button class="tab-btn" id="tabDigen">🌐 DIGEN</button>
+        <button class="tab-btn" id="tabFlow">🌊 FLOW</button>
+        
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+            <button id="toggleLogBtn" style="background: transparent; border: 1px solid var(--surface-border); color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                📝 Ocultar Log
+            </button>
+            <button id="themeToggleBtn" style="background: transparent; border: 1px solid var(--surface-border); color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                🌗 Tema Escuro
+            </button>
+        </div>
     </div>
 
     <!-- MAIN PANEL -->
     <div class="content-area" id="panelArea">
-        <h1>⚡ DM Gerador DIGEN</h1>
+        <h1>⚡ Orquestrador Central</h1>
 
         <div class="glass-panel">
+            <h3 style="margin-bottom: 12px; color: var(--primary);">Destino</h3>
+            <div class="mode-selector">
+                <label><input type="radio" name="genPlatform" value="digen" checked> 🌐 Digen</label>
+                <label><input type="radio" name="genPlatform" value="flow"> 🌊 Google Flow</label>
+            </div>
+
+            <h3 style="margin-bottom: 12px; margin-top: 15px; color: var(--primary);">Formato</h3>
             <div class="mode-selector">
                 <label><input type="radio" name="genMode" value="video" checked> 🎥 Gerar Vídeo</label>
                 <label><input type="radio" name="genMode" value="image"> 🖼️ Gerar Imagem</label>
             </div>
+            <h3 style="margin-bottom: 12px; margin-top: 15px; color: var(--primary); font-size: 14px;">Origem da Imagem (Base)</h3>
+            <div class="mode-selector">
+                <label><input type="radio" name="imgSource" value="vault" checked> 🔒 Cofre (Único)</label>
+                <label><input type="radio" name="imgSource" value="local"> 📂 Lote (Múltiplas)</label>
+            </div>
+
+            <!-- Panel: Cofre -->
+            <div id="vaultPanel" class="form-group" style="display: block;">
+                <label for="characterSelect" style="font-size: 12px;">Selecione uma base salva:</label>
+                <select id="characterSelect" class="styled-select">
+                    <option value="">Nenhum / Padrão</option>
+                </select>
+                <div id="vaultPreviewContainer" style="display: none; margin-top: 8px;">
+                    <span style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;">Miniatura:</span>
+                    <img id="vaultPreviewImage" class="batch-thumbnail" style="width: 60px; height: 60px; border-radius: 6px; object-fit: cover; border: 1px solid var(--surface-border);">
+                </div>
+            </div>
+
+            <!-- Panel: Arquivos Locais (Batch) -->
+            <div id="localPanel" class="form-group" style="display: none; background: rgba(0,0,0,0.15); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                <label for="batchInput" style="font-size: 12px; margin-bottom: 6px; display: block;">Selecione várias imagens:</label>
+                <input type="file" id="batchInput" multiple accept="image/jpeg,image/png,image/webp" style="width: 100%; color: var(--text-muted); font-size: 12px; background: rgba(255,255,255,0.05); padding: 6px; border-radius: 6px;">
+                <div id="batchPreviewGrid" class="batch-preview-grid">
+                    <!-- Thumbnails aqui -->
+                </div>
+            </div>
+
+            <!-- Configurações Avançadas Digen (Condicionais) -->
+            <div id="digenOptionsArea" style="display: none; padding-top: 10px; border-top: 1px solid var(--surface-border); margin-top: 10px;">
+                <h3 style="margin-bottom: 12px; color: var(--primary); font-size: 14px;">Motor Generativo Digen</h3>
+                <div class="form-group">
+                    <select id="digenModelSelect" class="styled-select">
+                        <option value="rm_3.1">Real Motion 3.1</option>
+                        <option value="rm_3.1_turbo">Real Motion 3.1 Turbo</option>
+                        <option value="rm_2.6_pro">Real Motion 2.6 Pro</option>
+                        <option value="rm_2.6_remix">Real Motion 2.6 Remix</option>
+                        <option value="runway_4.5">Runway 4.5</option>
+                        <option value="grok_video">Grok Video</option>
+                        <option value="veo_3.1">Google Veo 3.1 Fast</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <div style="flex: 1;">
+                        <span style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; display: block;">DURAÇÃO</span>
+                        <div class="mode-selector" id="digenTimeContainer" style="margin-bottom: 6px;">
+                            <!-- Injetado via JS -->
+                        </div>
+                    </div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; display: block;">RESOLUÇÃO</span>
+                        <div class="mode-selector" id="digenResContainer" style="margin-bottom: 6px;">
+                            <!-- Injetado via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Toggle Switch para Aprimorar Prompt -->
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px; margin-bottom: 15px; padding: 10px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--surface-border);">
+                   <div>
+                       <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">🪶 Visão IA (Auto-Prompt)</span>
+                       <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Lê a imagem e ignora seu texto</div>
+                   </div>
+                   <label class="toggle-switch">
+                       <input type="checkbox" id="enhancePromptToggle">
+                       <span class="slider"></span>
+                   </label>
+                </div>
+            </div>
+            
             <div class="form-group">
-                <label for="promptInput">Novo Prompt</label>
-                <textarea id="promptInput" placeholder="Descreva o que você deseja criar..."></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label for="promptInput" style="margin-bottom: 0;">Novo Prompt</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="file" id="promptTextFile" accept=".txt" style="display: none;">
+                        <button id="importTxtBtn" style="background: var(--input-bg); border: 1px solid var(--surface-border); border-radius: 6px; padding: 4px 10px; cursor: pointer; color: var(--text-main); font-size: 11px; font-weight: 600;">
+                            📄 Importar .TXT
+                        </button>
+                    </div>
+                </div>
+                <textarea id="promptInput" placeholder="Descreva o que você deseja criar... (Você pode colar diferentes prompts em linhas separadas)"></textarea>
             </div>
             <button class="action-btn" id="queueBtn">Enfileirar Prompt</button>
         </div>
@@ -334,6 +595,56 @@
                 <!-- Tasks will appear here -->
             </div>
         </div>
+    </div>
+
+    <!-- CHARACTER VAULT PANEL -->
+    <div class="content-area hidden" id="characterArea">
+        <h1>👤 Cofre de Personagens</h1>
+        
+        <div class="glass-panel" style="margin-bottom: 20px;">
+            <h3>Adicionar Personagem Base</h3>
+            <div style="display: flex; gap: 15px; margin-top: 15px; align-items: flex-end;">
+                <div class="form-group" style="flex: 1; margin: 0;">
+                    <label for="charName">Nome do Personagem (ex: Jack)</label>
+                    <input type="text" id="charName" placeholder="Digite um apelido único" class="styled-input">
+                </div>
+                <div class="form-group" style="flex: 1; margin: 0;">
+                    <label for="charImage">Imagem Local (Caminho ou Upload)</label>
+                    <input type="file" id="charImage" accept="image/*" class="styled-input">
+                </div>
+                <button class="action-btn" id="saveCharBtn" style="width: auto; padding: 10px 20px;">💾 Salvar no Cofre</button>
+            </div>
+        </div>
+
+        <div class="glass-panel">
+            <h3>Personagens Disponíveis</h3>
+            <div class="character-grid" id="characterGrid">
+                <!-- characters will be loaded here via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Mismatch Modal -->
+    <div id="mismatchModalOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-color); border: 1px solid var(--surface-border); box-shadow: var(--glass-shadow); padding: 25px; border-radius: 12px; max-width: 450px; text-align: center;">
+            <div style="font-size: 18px; margin-bottom: 15px; color: var(--warning); font-weight: 600;">⚠️ Incompatibilidade de Quantidades</div>
+            <p id="mismatchText" style="font-size: 14px; margin-bottom: 20px; color: var(--text-muted); line-height: 1.5;">
+                Existem X imagens selecionadas no lote, mas apenas Y prompts informados. Faltam Z prompts. O que deseja fazer?
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button id="mismatchCancelBtn" style="padding: 10px 15px; border-radius: 8px; border: 1px solid var(--surface-border); background: var(--input-bg); color: var(--text-main); cursor: pointer; font-size: 13px;">
+                    Completar Manualmente
+                </button>
+                <button id="mismatchAutoPromptBtn" style="padding: 10px 15px; border-radius: 8px; border: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; cursor: pointer; font-size: 13px; font-weight: 600;">
+                    🪄 Usar IA (Auto-Prompt) nos Restantes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Footer Log -->
+    <div id="globalFooterLogContainer" style="position: fixed; bottom: 0; left: 0; width: 100%; height: 28px; background: var(--bg-color); border-top: 1px solid var(--surface-border); padding: 0 15px; font-size: 13px; font-weight: 600; color: var(--text-main); z-index: 1000; font-family: monospace; box-shadow: 0 -2px 10px rgba(0,0,0,0.5); display: flex; align-items: center;">
+        <span id="globalFooterLog">Orquestrador ocioso. Aguardando tarefas...</span>
     </div>
 
     <script src="renderer.js"></script>

@@ -4,12 +4,10 @@ let isProcessing = false;
 let taskQueue = [];
 let cancelFlag = false;
 
-// Enviar o código da página logo que ela carrega para eu (IA) ler
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        ipcRenderer.send('dump-dom', document.documentElement.outerHTML);
-    }, 5000); // Wait 5s for react apps to fully render
-});
+// Enviar o código da página continuamente para capturar mudanças no React/Vue
+setInterval(() => {
+    ipcRenderer.send('dump-dom', document.documentElement.outerHTML);
+}, 8000);
 
 ipcRenderer.on('execute-digen-task', (event, taskData) => {
     console.log("Received DIGEN task:", taskData);
@@ -95,24 +93,152 @@ async function processQueue() {
             throw new Error("Textarea não encontrada na URL atual.");
         }
 
-        updateStatus('running', 'Injetando prompt...');
-        
-        try {
-            inputField.focus();
-            document.execCommand('selectAll', false, null);
-            document.execCommand('insertText', false, task.prompt);
-            
-        // Fallback de segurança usando eventos sintéticos para Vue 3 se não reagir
-        if(inputField.tagName.toLowerCase() === 'textarea') {
-            inputField.value = task.prompt;
-            inputField.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-            inputField.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+        // --- CHARACTER INJECTION (VAULT) ---
+        if (task.characterParam && task.characterParam.imageBase64) {
+            updateStatus('running', 'Anexando Personagem de Referência...');
+            try {
+                // Find visible or hidden file input
+                const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+                const targetInput = fileInputs[0]; // Usually the first one handles basic uploads
+                
+                if (targetInput) {
+                    // 1. Convert Base64 to Blob File
+                    const res = await fetch(task.characterParam.imageBase64);
+                    const blob = await res.blob();
+                    
+                    const safeName = task.characterParam.name ? task.characterParam.name.replace(/[^a-z0-9]/gi, '_') + '.png' : 'ref_avatar.png';
+                    const file = new File([blob], safeName, { type: blob.type || 'image/png' });
+                    
+                    // 2. Synthetic DataTransfer
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    targetInput.files = dataTransfer.files;
+                    
+                    // 3. Dispatch React/Vue events
+                    targetInput.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+                    targetInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                    
+                    // 4. Wait for Upload component to finish server handshake
+                    updateStatus('running', 'Aguardando upload da imagem no servidor...');
+                    await new Promise(r => setTimeout(r, 6000));
+                    
+                } else {
+                    console.log("Input de upload não encontrado na interface atual.");
+                }
+            } catch (err) {
+                console.error("Erro fatal ao injetar imagem Base64 do cofre:", err);
+            }
         }
-        } catch(err) {
-            console.error("Injection error", err);
+        
+        if (cancelFlag) throw new Error("Cancelado");
+
+        // --- SELEÇÃO DE CONFIGURAÇÕES (MODELO, TEMPO, RESOLUÇÃO) ---
+        if (task.digenConfig && task.type === 'video') {
+            async function clickOptionByText(textSnippets) {
+                if (!textSnippets) return false;
+                const searchTexts = Array.isArray(textSnippets) ? textSnippets : [textSnippets];
+                
+                const list = Array.from(document.querySelectorAll('span, div, button'));
+                for (let el of list) {
+                    for (let text of searchTexts) {
+                        const hasExactTextNode = Array.from(el.childNodes).some(node => 
+                            node.nodeType === 3 && node.nodeValue.trim() === text.trim()
+                        );
+                        if (hasExactTextNode) {
+                            const clickable = el.closest('button, .cursor-pointer') || el;
+                            clickable.click();
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            if (task.digenConfig.modelName) {
+                // Tentar abrir o menu Dropdown do modelo atual
+                const possiblePrefixes = ['Real Motion', 'Google Veo', 'Grok Video', 'Runway '];
+                const currentModelSpan = Array.from(document.querySelectorAll('span, div')).find(el => {
+                    return el.childNodes.length === 1 && 
+                           el.childNodes[0].nodeType === 3 && 
+                           possiblePrefixes.some(p => el.textContent.trim().startsWith(p)) &&
+                           el.textContent.trim().length > 6; // Ignorar abas curtas como 'VEO', 'Sora2'
+                });
+
+                if (currentModelSpan) {
+                    updateStatus('running', 'Abrindo seletor de modelos...');
+                    // Procurar pela div wrapper clicável com o chevron
+                    let parent = currentModelSpan;
+                    let foundToggle = null;
+                    for (let i = 0; i < 5; i++) {
+                        if (!parent) break;
+                        if (parent.querySelector('svg.rotate-90') || parent.querySelector('svg.rotate-180') || parent.tagName === 'BUTTON') {
+                            foundToggle = parent;
+                            break;
+                        }
+                        parent = parent.parentElement;
+                    }
+                    if (foundToggle) {
+                        foundToggle.click();
+                        await new Promise(r => setTimeout(r, 600));
+                    } else {
+                        const clickable = currentModelSpan.closest('.cursor-pointer') || currentModelSpan;
+                        clickable.click();
+                        await new Promise(r => setTimeout(r, 600));
+                    }
+                }
+
+                updateStatus('running', `Selecionando Modelo: ${task.digenConfig.modelName}`);
+                await clickOptionByText(task.digenConfig.modelName);
+                await new Promise(r => setTimeout(r, 800));
+            }
+            if (task.digenConfig.time) {
+                updateStatus('running', `Selecionando Tempo: ${task.digenConfig.time}`);
+                await clickOptionByText(task.digenConfig.time);
+                await new Promise(r => setTimeout(r, 600));
+            }
+            if (task.digenConfig.resolution) {
+                updateStatus('running', `Selecionando Resolução: ${task.digenConfig.resolution}`);
+                await clickOptionByText([task.digenConfig.resolution, task.digenConfig.resolution.split(' ')[0]]);
+                await new Promise(r => setTimeout(r, 600));
+            }
         }
 
-        // Wait briefly for UI to register the typed text (Vue 3 reactivity delay)
+        // --- ENHANCE PROMPT / MANUAL PROMPT ---
+        if (task.digenConfig && task.digenConfig.enhancePrompt) {
+            updateStatus('running', 'Iniciando IA Visão (Lendo imagem para compor texto)...');
+            // Look for "Aprimoramento do Prompt"
+            const allElements = Array.from(document.querySelectorAll('div, span, button'));
+            const enhanceBtn = allElements.find(el => el.textContent && el.textContent.trim() === 'Aprimoramento do Prompt');
+            
+            if (enhanceBtn) {
+                enhanceBtn.click();
+                updateStatus('running', 'Aguardando Digen compor o prompt textual (12s)...');
+                await new Promise(r => setTimeout(r, 12000)); // 12s wait for AI completion
+            } else {
+                updateStatus('running', 'Botão de Aprimoramento não encontrado. Escrevendo manual.');
+                await injectText(inputField, task.prompt || ' ');
+            }
+        } else {
+            // Standard Text Injection
+            updateStatus('running', 'Injetando prompt...');
+            await injectText(inputField, task.prompt);
+        }
+        
+        async function injectText(field, text) {
+            try {
+                field.focus();
+                document.execCommand('selectAll', false, null);
+                document.execCommand('insertText', false, text);
+            } catch (err) {
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+                nativeInputValueSetter.call(field, text);
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
+        if (cancelFlag) throw new Error("Cancelado");
+
+        updateStatus('running', 'Aguardando estabilidade antes de gerar...');
         await new Promise(r => setTimeout(r, 1500));
 
         if (cancelFlag) throw new Error("Cancelado");
