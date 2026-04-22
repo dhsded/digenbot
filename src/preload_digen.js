@@ -279,8 +279,17 @@ async function processQueue() {
             await new Promise(r => setTimeout(r, 1500));
         }
 
-        updateStatus('running', 'Deixando a fila seguir...');
+        updateStatus('running', 'Deixando a fila seguir mas escutando por conclusão...');
         await new Promise(r => setTimeout(r, 5000));
+        
+        // DUMP DOM ESTRATÉGICO
+        ipcRenderer.send('dump-dom', { source: 'digen_result', html: document.documentElement.outerHTML });
+        
+        if (task.digenConfig && task.digenConfig.autoDownload) {
+            updateStatus('running', 'Aguardando renderização final do Digen no servidor para realizar download...');
+            await new Promise(r => setTimeout(r, 2000));
+            // A IMPLEMENTAÇÃO REAL VAI AQUI APÓS EU LER digen_result_dom_spy.html
+        }
 
         if (!cancelFlag) {
             updateStatus('completed', 'Finalizado');

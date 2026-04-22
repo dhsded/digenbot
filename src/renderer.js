@@ -45,6 +45,7 @@ let taskCounter = 0;
 const tabPanelBtn = document.getElementById('tabPanel');
 const tabDigenBtn = document.getElementById('tabDigen');
 const tabFlowBtn = document.getElementById('tabFlow');
+const tabMetaBtn = document.getElementById('tabMeta');
 const tabCharactersBtn = document.getElementById('tabCharacters');
 const panelArea = document.getElementById('panelArea');
 const characterArea = document.getElementById('characterArea');
@@ -53,6 +54,7 @@ function resetTabs() {
     tabPanelBtn.classList.remove('active');
     tabDigenBtn.classList.remove('active');
     tabFlowBtn.classList.remove('active');
+    tabMetaBtn.classList.remove('active');
     tabCharactersBtn.classList.remove('active');
     panelArea.classList.add('hidden');
     characterArea.classList.add('hidden');
@@ -84,6 +86,12 @@ tabCharactersBtn.addEventListener('click', () => {
     window.api.switchTab('panel'); // hide digen view to show normal html panels
 });
 
+tabMetaBtn.addEventListener('click', () => {
+    resetTabs();
+    tabMetaBtn.classList.add('active');
+    window.api.switchTab('meta');
+});
+
 
 // === Digen Conditional Architecture ===
 const digenModels = {
@@ -109,11 +117,54 @@ function initDigenReactivity() {
     function updateVisibility() {
         const p = document.querySelector('input[name="genPlatform"]:checked').value;
         const m = document.querySelector('input[name="genMode"]:checked').value;
-        if (p === 'digen' && m === 'video') {
+        const metaOptionsArea = document.getElementById('metaOptionsArea');
+        if (p === 'digen') {
             digenOptionsArea.style.display = 'block';
-            renderDigenOptions();
+            const vidGroup = document.getElementById('digenVideoSettingsGroup');
+            if (m === 'video') {
+                if (vidGroup) vidGroup.style.display = 'block';
+                renderDigenOptions();
+            } else {
+                if (vidGroup) vidGroup.style.display = 'none';
+            }
         } else {
             digenOptionsArea.style.display = 'none';
+        }
+        
+        if (p === 'meta') {
+            if (metaOptionsArea) metaOptionsArea.style.display = 'block';
+        } else {
+            if (metaOptionsArea) metaOptionsArea.style.display = 'none';
+        }
+        
+        const flowOptionsArea = document.getElementById('flowOptionsArea');
+        if (p === 'flow') {
+            if (flowOptionsArea) flowOptionsArea.style.display = 'block';
+        } else {
+            if (flowOptionsArea) flowOptionsArea.style.display = 'none';
+        }
+        
+        // Esconder opções de imagem base se for Meta AI + Imagem
+        const imgSourceTitle = document.getElementById('imgSourceTitle'); // Vamos precisar adicionar ID nisso depois se quisermos, mas o painel basta
+        const imgSourceSelector = document.getElementById('imgSourceSelector');
+        
+        if (p === 'meta' && m === 'image') {
+            if (imgSourceTitle) imgSourceTitle.style.display = 'none';
+            if (imgSourceSelector) imgSourceSelector.style.display = 'none';
+            vaultPanel.style.display = 'none';
+            localPanel.style.display = 'none';
+        } else {
+            if (imgSourceTitle) imgSourceTitle.style.display = 'block';
+            if (imgSourceSelector) imgSourceSelector.style.display = 'flex';
+            // Re-aplicar visibilidade base
+            const imgSourceMode = document.querySelector('input[name="imgSource"]:checked').value;
+             if (imgSourceMode === 'vault') {
+                 vaultPanel.style.display = 'block';
+                 localPanel.style.display = 'none';
+             } else {
+                 vaultPanel.style.display = 'none';
+                 localPanel.style.display = 'block';
+             }
         }
     }
 
@@ -230,6 +281,25 @@ document.getElementById('promptTextFile').addEventListener('change', (e) => {
     e.target.value = ''; // reset
 });
 
+// Configurar o botão de seleção de pasta (Meta AI)
+document.addEventListener('DOMContentLoaded', () => {
+    const setupFolderBtn = (btnId, inputId) => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.addEventListener('click', async () => {
+                const folder = await window.api.selectFolder();
+                if (folder) {
+                    document.getElementById(inputId).value = folder;
+                }
+            });
+        }
+    };
+    
+    setupFolderBtn('metaSelectFolderBtn', 'metaBasePath');
+    setupFolderBtn('digenSelectFolderBtn', 'digenBasePath');
+    setupFolderBtn('flowSelectFolderBtn', 'flowBasePath');
+});
+
 // === Logic ===
 document.getElementById('queueBtn').addEventListener('click', () => {
     const promptEl = document.getElementById('promptInput');
@@ -240,20 +310,78 @@ document.getElementById('queueBtn').addEventListener('click', () => {
     const platform = document.querySelector('input[name="genPlatform"]:checked').value;
     const imgSource = document.querySelector('input[name="imgSource"]:checked').value;
     
-    // Digen Config Fetch
     let digenConfig = null;
-    if (platform === 'digen' && mode === 'video') {
-        const timeInput = document.querySelector('input[name="digenTime"]:checked');
-        const resInput = document.querySelector('input[name="digenRes"]:checked');
-        const enhanceSwitch = document.getElementById('enhancePromptToggle');
+    if (platform === 'digen') {
+        const digenBasePathInput = document.getElementById('digenBasePath');
+        const digenFolderNameInput = document.getElementById('digenFolderName');
+        const digenAutoDownloadSwitch = document.getElementById('digenAutoDownloadToggle');
         
-        digenConfig = {
-            model: document.getElementById('digenModelSelect').value,
-            modelName: digenModels[document.getElementById('digenModelSelect').value]?.name || '',
-            time: timeInput ? timeInput.value : '',
-            resolution: resInput ? resInput.value : '',
-            enhancePrompt: enhanceSwitch ? enhanceSwitch.checked : false
+        let localDigenConfig = {
+            autoDownload: digenAutoDownloadSwitch ? digenAutoDownloadSwitch.checked : true,
+            basePath: digenBasePathInput ? digenBasePathInput.value.trim() : '',
+            folderName: digenFolderNameInput ? digenFolderNameInput.value.trim() : ''
         };
+        
+        if (localDigenConfig.autoDownload && !localDigenConfig.basePath) {
+            alert("Para Download Automático (Digen), por favor preencha o Caminho Base no Computador.");
+            return;
+        }
+        
+        if (mode === 'video') {
+            const timeInput = document.querySelector('input[name="digenTime"]:checked');
+            const resInput = document.querySelector('input[name="digenRes"]:checked');
+            const enhanceSwitch = document.getElementById('enhancePromptToggle');
+            
+            digenConfig = {
+                ...localDigenConfig,
+                model: document.getElementById('digenModelSelect').value,
+                modelName: digenModels[document.getElementById('digenModelSelect').value]?.name || '',
+                time: timeInput ? timeInput.value : '',
+                resolution: resInput ? resInput.value : '',
+                enhancePrompt: enhanceSwitch ? enhanceSwitch.checked : false
+            };
+        } else {
+            // Mode image for Digen
+            digenConfig = { ...localDigenConfig };
+        }
+    }
+    
+    // Flow Config Fetch
+    let flowConfig = null;
+    if (platform === 'flow') {
+        const flowBasePathInput = document.getElementById('flowBasePath');
+        const flowFolderNameInput = document.getElementById('flowFolderName');
+        const flowAutoDownloadSwitch = document.getElementById('flowAutoDownloadToggle');
+        flowConfig = {
+            autoDownload: flowAutoDownloadSwitch ? flowAutoDownloadSwitch.checked : true,
+            basePath: flowBasePathInput ? flowBasePathInput.value.trim() : '',
+            folderName: flowFolderNameInput ? flowFolderNameInput.value.trim() : ''
+        };
+        
+        if (flowConfig.autoDownload && !flowConfig.basePath) {
+            alert("Para Download Automático (Flow), por favor preencha o Caminho Base no Computador.");
+            return;
+        }
+    }
+    
+    let metaConfig = null;
+    if (platform === 'meta') {
+        const autoDownloadSwitch = document.getElementById('metaAutoDownloadToggle');
+        const countSelect = document.getElementById('metaDownloadCount');
+        const basePathInput = document.getElementById('metaBasePath');
+        const folderNameInput = document.getElementById('metaFolderName');
+        
+        metaConfig = {
+            autoDownload: autoDownloadSwitch ? autoDownloadSwitch.checked : true,
+            downloadCount: countSelect ? parseInt(countSelect.value, 10) : 4,
+            basePath: basePathInput ? basePathInput.value.trim() : '',
+            folderName: folderNameInput ? folderNameInput.value.trim() : ''
+        };
+        
+        if (metaConfig.autoDownload && !metaConfig.basePath) {
+            alert("Para Download Automático, por favor preencha o Caminho Base no Computador.");
+            return;
+        }
     }
 
     let itemsToProcess = [];
@@ -266,7 +394,9 @@ document.getElementById('queueBtn').addEventListener('click', () => {
              const chars = JSON.parse(localStorage.getItem('digenCharacters') || '[]');
              charData = chars.find(c => c.id === selectedCharId);
         }
-        if (!charData) {
+        
+        // Block if not image mode OR if platform is not meta, and there is no charData
+        if (!charData && mode !== 'image' && platform !== 'meta') {
             alert('Por favor, selecione um personagem do cofre.');
             return;
         }
@@ -288,7 +418,7 @@ document.getElementById('queueBtn').addEventListener('click', () => {
              document.getElementById('mismatchText').innerText = `Existem ${itemsToProcess.length} imagens no lote, mas apenas ${prompts.length} prompts informados. Faltam ${missingCount} prompts. O que deseja fazer?`;
              document.getElementById('mismatchModalOverlay').style.display = 'flex';
              
-             window.pendingTaskState = { items: itemsToProcess, prompts, mode, platform, digenConfig };
+             window.pendingTaskState = { items: itemsToProcess, prompts, mode, platform, digenConfig, metaConfig };
              return;
         }
     }
@@ -298,7 +428,7 @@ document.getElementById('queueBtn').addEventListener('click', () => {
         return;
     }
 
-    buildAndFireTasks(itemsToProcess, prompts, mode, platform, digenConfig, false);
+    buildAndFireTasks(itemsToProcess, prompts, mode, platform, digenConfig, metaConfig, flowConfig, false);
 });
 
 // Modal Actions
@@ -311,16 +441,22 @@ document.getElementById('mismatchAutoPromptBtn').addEventListener('click', () =>
     document.getElementById('mismatchModalOverlay').style.display = 'none';
     if (window.pendingTaskState) {
         const state = window.pendingTaskState;
-        buildAndFireTasks(state.items, state.prompts, state.mode, state.platform, state.digenConfig, true);
+        buildAndFireTasks(state.items, state.prompts, state.mode, state.platform, state.digenConfig, state.metaConfig, state.flowConfig, true);
         window.pendingTaskState = null;
     }
 });
 
-function buildAndFireTasks(imagesList, promptsList, mode, platform, baseConfig, autoPromptMissing) {
+function buildAndFireTasks(imagesList, promptsList, mode, platform, baseConfig, metaConfig, flowConfig, autoPromptMissing) {
     for (let i = 0; i < imagesList.length; i++) {
         const charData = imagesList[i];
         let pText = promptsList[i];
         let taskConfig = baseConfig ? { ...baseConfig } : null;
+        
+        // Calcular o StartIndex do lote (para numerar imagens do Meta) se aplicavel
+        let taskMetaConfig = metaConfig ? { ...metaConfig } : null;
+        if (taskMetaConfig && taskMetaConfig.autoDownload) {
+            taskMetaConfig.startIndex = (i * taskMetaConfig.downloadCount) + 1;
+        }
         
         if (!pText) {
              if (autoPromptMissing && taskConfig) {
@@ -341,6 +477,12 @@ function buildAndFireTasks(imagesList, promptsList, mode, platform, baseConfig, 
             characterParam: charData,
             digenConfig: taskConfig
         };
+        // Set specific task config based on platform
+        if (platform === 'meta') {
+            taskData.metaConfig = taskMetaConfig;
+        } else if (platform === 'flow') {
+            taskData.flowConfig = flowConfig;
+        }
 
         addTaskToUI(taskData);
         window.api.queueTask(taskData);
@@ -351,6 +493,8 @@ function buildAndFireTasks(imagesList, promptsList, mode, platform, baseConfig, 
         document.getElementById('tabDigen').click();
     } else if (platform === 'flow') {
         document.getElementById('tabFlow').click();
+    } else if (platform === 'meta') {
+        document.getElementById('tabMeta').click();
     }
 }
 

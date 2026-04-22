@@ -471,6 +471,7 @@
         <button class="tab-btn" id="tabCharacters">👤 Cofre de Personagens</button>
         <button class="tab-btn" id="tabDigen">🌐 DIGEN</button>
         <button class="tab-btn" id="tabFlow">🌊 FLOW</button>
+        <button class="tab-btn" id="tabMeta">♾️ Meta AI</button>
         
         <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
             <button id="toggleLogBtn" style="background: transparent; border: 1px solid var(--surface-border); color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
@@ -491,6 +492,7 @@
             <div class="mode-selector">
                 <label><input type="radio" name="genPlatform" value="digen" checked> 🌐 Digen</label>
                 <label><input type="radio" name="genPlatform" value="flow"> 🌊 Google Flow</label>
+                <label><input type="radio" name="genPlatform" value="meta"> ♾️ Meta AI</label>
             </div>
 
             <h3 style="margin-bottom: 12px; margin-top: 15px; color: var(--primary);">Formato</h3>
@@ -498,8 +500,8 @@
                 <label><input type="radio" name="genMode" value="video" checked> 🎥 Gerar Vídeo</label>
                 <label><input type="radio" name="genMode" value="image"> 🖼️ Gerar Imagem</label>
             </div>
-            <h3 style="margin-bottom: 12px; margin-top: 15px; color: var(--primary); font-size: 14px;">Origem da Imagem (Base)</h3>
-            <div class="mode-selector">
+            <h3 id="imgSourceTitle" style="margin-bottom: 12px; margin-top: 15px; color: var(--primary); font-size: 14px;">Origem da Imagem (Base)</h3>
+            <div class="mode-selector" id="imgSourceSelector">
                 <label><input type="radio" name="imgSource" value="vault" checked> 🔒 Cofre (Único)</label>
                 <label><input type="radio" name="imgSource" value="local"> 📂 Lote (Múltiplas)</label>
             </div>
@@ -528,8 +530,9 @@
             <!-- Configurações Avançadas Digen (Condicionais) -->
             <div id="digenOptionsArea" style="display: none; padding-top: 10px; border-top: 1px solid var(--surface-border); margin-top: 10px;">
                 <h3 style="margin-bottom: 12px; color: var(--primary); font-size: 14px;">Motor Generativo Digen</h3>
-                <div class="form-group">
-                    <select id="digenModelSelect" class="styled-select">
+                <div id="digenVideoSettingsGroup">
+                    <div class="form-group">
+                        <select id="digenModelSelect" class="styled-select">
                         <option value="rm_3.1">Real Motion 3.1</option>
                         <option value="rm_3.1_turbo">Real Motion 3.1 Turbo</option>
                         <option value="rm_2.6_pro">Real Motion 2.6 Pro</option>
@@ -565,6 +568,101 @@
                        <input type="checkbox" id="enhancePromptToggle">
                        <span class="slider"></span>
                    </label>
+                </div>
+                </div>
+                
+                <h3 style="margin-top: 15px; margin-bottom: 12px; color: var(--primary); font-size: 13px;">Destino de Salvamento (Digen)</h3>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px; margin-bottom: 10px; padding: 10px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--surface-border);">
+                   <div>
+                       <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">📥 Download Automático</span>
+                       <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Aguardar e baixar a mídia ao finalizar processamento</div>
+                   </div>
+                   <label class="toggle-switch">
+                       <input type="checkbox" id="digenAutoDownloadToggle" checked>
+                       <span class="slider"></span>
+                   </label>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 5px;" id="digenPathConfigGroup">
+                    <div style="flex: 2;">
+                        <label for="digenBasePath" style="font-size: 12px;">Caminho Base no Computador:</label>
+                        <div style="display: flex; gap: 4px;">
+                            <input type="text" id="digenBasePath" placeholder="Ex: C:\Users\Nome\Downloads" style="flex: 1; color: var(--text-main); font-size: 12px; background: var(--input-bg); padding: 8px; border-radius: 6px; border: 1px solid var(--surface-border);">
+                            <button id="digenSelectFolderBtn" style="background: rgba(255, 255, 255, 0.05); color: var(--text-main); border: 1px solid var(--surface-border); border-radius: 6px; padding: 0 12px; cursor: pointer; transition: all 0.2s;" title="Selecionar Pasta">📂</button>
+                        </div>
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="digenFolderName" style="font-size: 12px;">Nova Pasta:</label>
+                        <input type="text" id="digenFolderName" placeholder="Ex: Digen_Lote" style="width: 100%; color: var(--text-main); font-size: 12px; background: var(--input-bg); padding: 8px; border-radius: 6px; border: 1px solid var(--surface-border);">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Configurações Avançadas Google Flow -->
+            <div id="flowOptionsArea" style="display: none; padding-top: 10px; border-top: 1px solid var(--surface-border); margin-top: 10px;">
+                <h3 style="margin-bottom: 12px; color: var(--primary); font-size: 14px;">Motor Generativo Google Flow</h3>
+                
+                <h3 style="margin-top: 5px; margin-bottom: 12px; color: var(--primary); font-size: 13px;">Destino de Salvamento (Flow)</h3>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px; margin-bottom: 10px; padding: 10px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--surface-border);">
+                   <div>
+                       <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">📥 Download Automático</span>
+                       <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Aguardar e baixar a mídia ao finalizar processamento</div>
+                   </div>
+                   <label class="toggle-switch">
+                       <input type="checkbox" id="flowAutoDownloadToggle" checked>
+                       <span class="slider"></span>
+                   </label>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 5px;" id="flowPathConfigGroup">
+                    <div style="flex: 2;">
+                        <label for="flowBasePath" style="font-size: 12px;">Caminho Base no Computador:</label>
+                        <div style="display: flex; gap: 4px;">
+                            <input type="text" id="flowBasePath" placeholder="Ex: C:\Users\Nome\Downloads" style="flex: 1; color: var(--text-main); font-size: 12px; background: var(--input-bg); padding: 8px; border-radius: 6px; border: 1px solid var(--surface-border);">
+                            <button id="flowSelectFolderBtn" style="background: rgba(255, 255, 255, 0.05); color: var(--text-main); border: 1px solid var(--surface-border); border-radius: 6px; padding: 0 12px; cursor: pointer; transition: all 0.2s;" title="Selecionar Pasta">📂</button>
+                        </div>
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="flowFolderName" style="font-size: 12px;">Nova Pasta:</label>
+                        <input type="text" id="flowFolderName" placeholder="Ex: Flow_Lote" style="width: 100%; color: var(--text-main); font-size: 12px; background: var(--input-bg); padding: 8px; border-radius: 6px; border: 1px solid var(--surface-border);">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Configurações Avançadas Meta AI -->
+            <div id="metaOptionsArea" style="display: none; padding-top: 10px; border-top: 1px solid var(--surface-border); margin-top: 10px;">
+                <h3 style="margin-bottom: 12px; color: var(--primary); font-size: 14px;">Motor Generativo Meta AI</h3>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px; margin-bottom: 10px; padding: 10px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--surface-border);">
+                   <div>
+                       <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">📥 Download Automático</span>
+                       <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Baixa os vídeos ou as imagens geradas logo após concluir</div>
+                   </div>
+                   <label class="toggle-switch">
+                       <input type="checkbox" id="metaAutoDownloadToggle" checked>
+                       <span class="slider"></span>
+                   </label>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label for="metaDownloadCount" style="font-size: 12px;">Qtd. Imagens a baixar (por prompt):</label>
+                    <select id="metaDownloadCount" class="styled-select">
+                        <option value="1">Baixar 1 Imagem</option>
+                        <option value="2">Baixar 2 Imagens</option>
+                        <option value="3">Baixar 3 Imagens</option>
+                        <option value="4" selected>Baixar as 4 Imagens</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 8px; margin-bottom: 15px;" id="metaPathConfigGroup">
+                    <div style="flex: 2;">
+                        <label for="metaBasePath" style="font-size: 12px;">Caminho Base no Computador:</label>
+                        <div style="display: flex; gap: 4px;">
+                            <input type="text" id="metaBasePath" placeholder="Ex: C:\Users\Nome\Downloads" style="flex: 1; color: var(--text-main); font-size: 12px; background: var(--input-bg); padding: 8px; border-radius: 6px; border: 1px solid var(--surface-border);">
+                            <button id="metaSelectFolderBtn" style="background: rgba(255, 255, 255, 0.05); color: var(--text-main); border: 1px solid var(--surface-border); border-radius: 6px; padding: 0 12px; cursor: pointer; transition: all 0.2s;" title="Selecionar Pasta">📂</button>
+                        </div>
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="metaFolderName" style="font-size: 12px;">Nova Pasta:</label>
+                        <input type="text" id="metaFolderName" placeholder="Ex: Lote_Meta_1" style="width: 100%; color: var(--text-main); font-size: 12px; background: var(--input-bg); padding: 8px; border-radius: 6px; border: 1px solid var(--surface-border);">
+                    </div>
                 </div>
             </div>
             

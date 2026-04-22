@@ -48,6 +48,15 @@ async function processQueue() {
         updateStatus('running', 'Processo futuro de Injeção Meta/VEO...');
         await new Promise(r => setTimeout(r, 3000));
         
+        // DUMP DOM ESTRATÉGICO
+        ipcRenderer.send('dump-dom', { source: 'flow_result', html: document.documentElement.outerHTML });
+        
+        if (task.flowConfig && task.flowConfig.autoDownload) {
+            updateStatus('running', 'Procurando mídia gerada no Flow para download na pasta destino...');
+            await new Promise(r => setTimeout(r, 2000));
+            // A IMPLEMENTAÇÃO REAL VAI AQUI APÓS EU LER flow_result_dom_spy.html
+        }
+        
         if (!cancelFlag) {
             updateStatus('completed', 'Flow Finalizado (Mock)');
         } else {

@@ -1,9 +1,10 @@
-const { app, BrowserWindow, BrowserView, ipcMain } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, dialog } = require('electron');
 const path = require('path');
 
 let uiWindow;
 let digenView;
 let flowView;
+let metaView;
 
 function createWindow() {
   uiWindow = new BrowserWindow({
@@ -57,6 +58,23 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  metaView = new BrowserView({
+    webPreferences: {
+      preload: path.join(__dirname, 'preload_meta.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      javascript: true,
+      backgroundThrottling: false
+    }
+  });
+
+  metaView.webContents.loadURL('https://www.meta.ai/create?utm_source=facebook_bookmarks');
+
+  metaView.webContents.setWindowOpenHandler(({ url }) => {
+    metaView.webContents.loadURL(url);
+    return { action: 'deny' };
+  });
+
   let footerVisible = true;
 
   // Handle Tab Switching with BrowserView
@@ -72,6 +90,11 @@ function createWindow() {
       const bounds = uiWindow.getContentBounds();
       flowView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
       flowView.setAutoResize({ width: true, height: true, vertical: true });
+    } else if (tab === 'meta') {
+      uiWindow.setBrowserView(metaView);
+      const bounds = uiWindow.getContentBounds();
+      metaView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
+      metaView.setAutoResize({ width: true, height: true, vertical: true });
     } else {
       uiWindow.setBrowserView(null);
     }
@@ -88,6 +111,8 @@ function createWindow() {
       digenView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
     } else if (currentView === flowView) {
       flowView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
+    } else if (currentView === metaView) {
+      metaView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
     }
   });
 
@@ -95,6 +120,8 @@ function createWindow() {
     console.log(`Main: Routing task to ${taskData.platform.toUpperCase()} view:`, taskData.prompt);
     if (taskData.platform === 'flow') {
         flowView.webContents.send('execute-flow-task', taskData);
+    } else if (taskData.platform === 'meta') {
+        metaView.webContents.send('execute-meta-task', taskData);
     } else {
         digenView.webContents.send('execute-digen-task', taskData);
     }
@@ -109,16 +136,73 @@ function createWindow() {
   ipcMain.on('stop-queue', () => {
     if (digenView) digenView.webContents.send('execute-stop-queue');
     if (flowView) flowView.webContents.send('execute-stop-queue');
+    if (metaView) metaView.webContents.send('execute-stop-queue');
   });
 
   // Spy function to dump DOM for Antigravity
-  ipcMain.on('dump-dom', (event, html) => {
+  ipcMain.on('dump-dom', (event, data) => {
     try {
-      require('fs').writeFileSync(path.join(__dirname, '..', 'digen_dom_spy.html'), html, 'utf-8');
-      console.log("DOM extraído e salvo com sucesso!");
+      let fileName = 'digen_dom_spy.html';
+      let htmlData = data;
+      
+      if (typeof data === 'object' && data.source) {
+          fileName = `${data.source}_dom_spy.html`;
+          htmlData = data.html;
+      }
+      
+      require('fs').writeFileSync(path.join(__dirname, '..', fileName), htmlData, 'utf-8');
+      console.log(`DOM extraído e salvo com sucesso em ${fileName}!`);
     } catch(e) {
       console.error("Falha ao salvar DOM", e);
     }
+  });
+
+  // Silent download handler
+  ipcMain.on('download-silent', (event, { base64Data, url, basePath, folderName, fileName }) => {
+    try {
+        const fs = require('fs');
+        const https = require('https');
+        const targetDir = path.join(basePath, folderName);
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
+        const filePath = path.join(targetDir, fileName);
+        
+        if (base64Data) {
+            let base64 = base64Data;
+            if (base64.includes(',')) {
+                base64 = base64.split(',')[1];
+            }
+            fs.writeFileSync(filePath, base64, 'base64');
+            console.log(`Main: Download silenciado (base64) salvo com sucesso em ${filePath}`);
+        } else if (url) {
+            const file = fs.createWriteStream(filePath);
+            https.get(url, (response) => {
+                response.pipe(file);
+                file.on('finish', () => {
+                    file.close();
+                    console.log(`Main: Download silenciado (url) salvo com sucesso em ${filePath}`);
+                });
+            }).on('error', (err) => {
+                fs.unlink(filePath, () => {});
+                console.error("Main: Erro ao baixar url silenciosamente:", err);
+            });
+        }
+    } catch(e) {
+        console.error("Main: Erro no download silencioso", e);
+    }
+  });
+
+  // Folder selector handler
+  ipcMain.handle('select-folder', async () => {
+      const result = await dialog.showOpenDialog(uiWindow, {
+          properties: ['openDirectory']
+      });
+      if (result.canceled) {
+          return null;
+      } else {
+          return result.filePaths[0];
+      }
   });
 }
 

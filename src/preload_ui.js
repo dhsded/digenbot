@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('api', {
     switchTab: (tabId) => ipcRenderer.send('switch-tab', tabId),
     stopQueue: () => ipcRenderer.send('stop-queue'),
     toggleFooter: (visible) => ipcRenderer.send('toggle-footer', visible),
+    selectFolder: () => ipcRenderer.invoke('select-folder'),
     onStatusUpdate: (callback) => ipcRenderer.on('ui-status-update', (event, data) => callback(data))
 });
