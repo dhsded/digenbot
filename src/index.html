@@ -54,34 +54,73 @@
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             background: var(--bg-gradient);
             overflow: hidden; /* Stop whole body scroll so tab height is stable */
         }
 
-        /* Top Bar */
-        .top-bar {
-            height: 60px;
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 10px;
+            background: var(--topbar-bg);
+            border-right: 1px solid var(--surface-border);
+            backdrop-filter: blur(10px);
+            gap: 15px;
+            flex-shrink: 0;
+            transition: width 0.3s ease;
+            position: relative;
+            z-index: 100;
+        }
+
+        .sidebar.collapsed {
+            width: 60px;
+        }
+
+        .sidebar.collapsed .tab-text {
+            display: none;
+        }
+
+        .collapse-btn {
+            position: absolute;
+            top: 20px;
+            right: -15px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            border: none;
             display: flex;
             align-items: center;
-            padding: 0 20px;
-            background: var(--topbar-bg);
-            border-bottom: 1px solid var(--surface-border);
-            backdrop-filter: blur(10px);
-            gap: 20px;
-            flex-shrink: 0;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 101;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.collapsed .collapse-btn {
+            transform: rotate(180deg);
         }
 
         .tab-btn {
             background: transparent;
             color: var(--text-muted);
             border: none;
-            padding: 8px 16px;
+            padding: 12px 16px;
             font-weight: 500;
             font-size: 14px;
             cursor: pointer;
             border-radius: 6px;
             transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            white-space: nowrap;
+            overflow: hidden;
         }
 
         .tab-btn.active {
@@ -466,20 +505,18 @@
 </head>
 <body>
 
-    <div class="top-bar">
-        <button class="tab-btn active" id="tabPanel">⚙️ Painel Central</button>
-        <button class="tab-btn" id="tabCharacters">👤 Cofre de Personagens</button>
-        <button class="tab-btn" id="tabDigen">🌐 DIGEN</button>
-        <button class="tab-btn" id="tabFlow">🌊 FLOW</button>
-        <button class="tab-btn" id="tabMeta">♾️ Meta AI</button>
+    <div class="sidebar" id="sidebar">
+        <button class="collapse-btn" id="sidebarToggleBtn">◀</button>
+        <button class="tab-btn active" id="tabPanel"><span class="tab-icon">⚙️</span> <span class="tab-text">Painel Central</span></button>
+        <button class="tab-btn" id="tabCharacters"><span class="tab-icon">👤</span> <span class="tab-text">Cofre de Personagens</span></button>
+        <button class="tab-btn" id="tabDigen"><span class="tab-icon">🌐</span> <span class="tab-text">DIGEN</span></button>
+        <button class="tab-btn" id="tabFlow"><span class="tab-icon">🌊</span> <span class="tab-text">FLOW</span></button>
+        <button class="tab-btn" id="tabMeta"><span class="tab-icon">♾️</span> <span class="tab-text">Meta AI</span></button>
+        <button class="tab-btn" id="tabVideoEditor"><span class="tab-icon">🎬</span> <span class="tab-text">Editor de Vídeo</span></button>
         
-        <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-            <button id="toggleLogBtn" style="background: transparent; border: 1px solid var(--surface-border); color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
-                📝 Ocultar Log
-            </button>
-            <button id="themeToggleBtn" style="background: transparent; border: 1px solid var(--surface-border); color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">
-                🌗 Tema Escuro
-            </button>
+        <div class="sidebar-footer" style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+            <button id="toggleLogBtn" class="tab-btn" style="padding: 8px 12px;"><span class="tab-icon">📝</span> <span class="tab-text">Ocultar Log</span></button>
+            <button id="themeToggleBtn" class="tab-btn" style="padding: 8px 12px;"><span class="tab-icon">🌗</span> <span class="tab-text">Tema Escuro</span></button>
         </div>
     </div>
 

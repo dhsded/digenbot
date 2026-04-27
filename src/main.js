@@ -5,6 +5,8 @@ let uiWindow;
 let digenView;
 let flowView;
 let metaView;
+let editorView;
+let currentSidebarWidth = 250;
 
 function createWindow() {
   uiWindow = new BrowserWindow({
@@ -75,28 +77,54 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  editorView = new BrowserView({
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'video_studio', 'bridge', 'preload_video_editor.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      javascript: true,
+      backgroundThrottling: false
+    }
+  });
+
+  editorView.webContents.loadURL('http://localhost:5173');
+
   let footerVisible = true;
 
   // Handle Tab Switching with BrowserView
-  ipcMain.on('switch-tab', (event, tab) => {
+  ipcMain.on('switch-tab', (event, tab, sidebarWidth = 250) => {
+    currentSidebarWidth = sidebarWidth;
     const footerHeight = footerVisible ? 28 : 0;
+    const bounds = uiWindow.getContentBounds();
+    
     if (tab === 'digen') {
       uiWindow.setBrowserView(digenView);
-      const bounds = uiWindow.getContentBounds();
-      digenView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
+      digenView.setBounds({ x: sidebarWidth, y: 0, width: bounds.width - sidebarWidth, height: bounds.height - footerHeight });
       digenView.setAutoResize({ width: true, height: true, vertical: true });
     } else if (tab === 'flow') {
       uiWindow.setBrowserView(flowView);
-      const bounds = uiWindow.getContentBounds();
-      flowView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
+      flowView.setBounds({ x: sidebarWidth, y: 0, width: bounds.width - sidebarWidth, height: bounds.height - footerHeight });
       flowView.setAutoResize({ width: true, height: true, vertical: true });
     } else if (tab === 'meta') {
       uiWindow.setBrowserView(metaView);
-      const bounds = uiWindow.getContentBounds();
-      metaView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
+      metaView.setBounds({ x: sidebarWidth, y: 0, width: bounds.width - sidebarWidth, height: bounds.height - footerHeight });
       metaView.setAutoResize({ width: true, height: true, vertical: true });
+    } else if (tab === 'video_editor') {
+      uiWindow.setBrowserView(editorView);
+      editorView.setBounds({ x: sidebarWidth, y: 0, width: bounds.width - sidebarWidth, height: bounds.height - footerHeight });
+      editorView.setAutoResize({ width: true, height: true, vertical: true });
     } else {
       uiWindow.setBrowserView(null);
+    }
+  });
+
+  ipcMain.on('update-bounds', (event, sidebarWidth) => {
+    currentSidebarWidth = sidebarWidth;
+    const footerHeight = footerVisible ? 28 : 0;
+    const bounds = uiWindow.getContentBounds();
+    const currentView = uiWindow.getBrowserView();
+    if (currentView) {
+      currentView.setBounds({ x: sidebarWidth, y: 0, width: bounds.width - sidebarWidth, height: bounds.height - footerHeight });
     }
   });
 
@@ -105,14 +133,9 @@ function createWindow() {
     const footerHeight = visible ? 28 : 0;
     const bounds = uiWindow.getContentBounds();
     
-    // Resize current active view
     const currentView = uiWindow.getBrowserView();
-    if (currentView === digenView) {
-      digenView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
-    } else if (currentView === flowView) {
-      flowView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
-    } else if (currentView === metaView) {
-      metaView.setBounds({ x: 0, y: 60, width: bounds.width, height: bounds.height - 60 - footerHeight });
+    if (currentView) {
+      currentView.setBounds({ x: currentSidebarWidth, y: 0, width: bounds.width - currentSidebarWidth, height: bounds.height - footerHeight });
     }
   });
 

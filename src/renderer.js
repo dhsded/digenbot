@@ -5,11 +5,11 @@ function applyTheme(theme) {
     if (theme === 'light') {
         document.documentElement.setAttribute('data-theme', 'light');
         const btn = document.getElementById('themeToggleBtn');
-        if(btn) btn.innerText = '🌗 Tema Escuro';
+        if(btn) btn.innerHTML = '<span class="tab-icon">🌗</span> <span class="tab-text">Tema Escuro</span>';
     } else {
         document.documentElement.removeAttribute('data-theme');
         const btn = document.getElementById('themeToggleBtn');
-        if(btn) btn.innerText = '☀️ Tema Claro';
+        if(btn) btn.innerHTML = '<span class="tab-icon">☀️</span> <span class="tab-text">Tema Claro</span>';
     }
 }
 
@@ -32,13 +32,29 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleLogBtn.addEventListener('click', () => {
             logVisible = !logVisible;
             document.getElementById('globalFooterLogContainer').style.display = logVisible ? 'flex' : 'none';
-            toggleLogBtn.innerText = logVisible ? '📝 Ocultar Log' : '📝 Mostrar Log';
+            toggleLogBtn.innerHTML = logVisible ? '<span class="tab-icon">📝</span> <span class="tab-text">Ocultar Log</span>' : '<span class="tab-icon">📝</span> <span class="tab-text">Mostrar Log</span>';
             if (window.api && window.api.toggleFooter) {
                 window.api.toggleFooter(logVisible);
             }
         });
     }
+
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    const sidebar = document.getElementById('sidebar');
+    if (sidebarToggleBtn && sidebar) {
+        sidebarToggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            if (window.api && window.api.updateBounds) {
+                window.api.updateBounds(sidebar.classList.contains('collapsed') ? 60 : 250);
+            }
+        });
+    }
 });
+
+const getSidebarWidth = () => {
+    const sidebar = document.getElementById('sidebar');
+    return sidebar && sidebar.classList.contains('collapsed') ? 60 : 250;
+};
 
 let taskCounter = 0;
 // === Tab Navigation ===
@@ -47,6 +63,7 @@ const tabDigenBtn = document.getElementById('tabDigen');
 const tabFlowBtn = document.getElementById('tabFlow');
 const tabMetaBtn = document.getElementById('tabMeta');
 const tabCharactersBtn = document.getElementById('tabCharacters');
+const tabVideoEditorBtn = document.getElementById('tabVideoEditor');
 const panelArea = document.getElementById('panelArea');
 const characterArea = document.getElementById('characterArea');
 
@@ -56,6 +73,7 @@ function resetTabs() {
     tabFlowBtn.classList.remove('active');
     tabMetaBtn.classList.remove('active');
     tabCharactersBtn.classList.remove('active');
+    if (tabVideoEditorBtn) tabVideoEditorBtn.classList.remove('active');
     panelArea.classList.add('hidden');
     characterArea.classList.add('hidden');
 }
@@ -64,33 +82,41 @@ tabPanelBtn.addEventListener('click', () => {
     resetTabs();
     tabPanelBtn.classList.add('active');
     panelArea.classList.remove('hidden');
-    window.api.switchTab('panel');
+    window.api.switchTab('panel', getSidebarWidth());
 });
 
 tabDigenBtn.addEventListener('click', () => {
     resetTabs();
     tabDigenBtn.classList.add('active');
-    window.api.switchTab('digen');
+    window.api.switchTab('digen', getSidebarWidth());
 });
 
 tabFlowBtn.addEventListener('click', () => {
     resetTabs();
     tabFlowBtn.classList.add('active');
-    window.api.switchTab('flow');
+    window.api.switchTab('flow', getSidebarWidth());
 });
 
 tabCharactersBtn.addEventListener('click', () => {
     resetTabs();
     tabCharactersBtn.classList.add('active');
     characterArea.classList.remove('hidden');
-    window.api.switchTab('panel'); // hide digen view to show normal html panels
+    window.api.switchTab('panel', getSidebarWidth()); // hide digen view to show normal html panels
 });
 
 tabMetaBtn.addEventListener('click', () => {
     resetTabs();
     tabMetaBtn.classList.add('active');
-    window.api.switchTab('meta');
+    window.api.switchTab('meta', getSidebarWidth());
 });
+
+if (tabVideoEditorBtn) {
+    tabVideoEditorBtn.addEventListener('click', () => {
+        resetTabs();
+        tabVideoEditorBtn.classList.add('active');
+        window.api.switchTab('video_editor', getSidebarWidth());
+    });
+}
 
 
 // === Digen Conditional Architecture ===

@@ -4,9 +4,13 @@
   "description": "Automated DIGEN generation tool",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build:engine": "node-gyp rebuild",
+    "dev:ui": "cd video_studio/ui && npm run dev"
   },
   "devDependencies": {
-    "electron": "^29.4.6"
+    "electron": "^29.4.6",
+    "node-addon-api": "^8.0.0",
+    "node-gyp": "^10.1.0"
   }
 }
