@@ -44,11 +44,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sidebarToggleBtn && sidebar) {
         sidebarToggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
+            const newWidth = sidebar.classList.contains('collapsed') ? 60 : 250;
             if (window.api && window.api.updateBounds) {
-                window.api.updateBounds(sidebar.classList.contains('collapsed') ? 60 : 250);
+                window.api.updateBounds(newWidth);
+            }
+            const controls = document.getElementById('browserControls');
+            if (controls && controls.style.display !== 'none') {
+                controls.style.left = newWidth + 'px';
             }
         });
     }
+
+
 });
 
 const getSidebarWidth = () => {
@@ -56,67 +63,263 @@ const getSidebarWidth = () => {
     return sidebar && sidebar.classList.contains('collapsed') ? 60 : 250;
 };
 
+function updateBrowserControls(tabId) {
+    const controls = document.getElementById('browserControls');
+    if (controls) {
+        const isExternal = ['digen', 'flow', 'meta', 'grok'].includes(tabId);
+        if (isExternal) {
+            controls.style.display = 'flex';
+            controls.style.left = getSidebarWidth() + 'px';
+        } else {
+            controls.style.display = 'none';
+        }
+    }
+}
+
+// Browser Controls listeners
+document.addEventListener('DOMContentLoaded', () => {
+    const btnBack = document.getElementById('btnBrowserBack');
+    const btnForward = document.getElementById('btnBrowserForward');
+    const btnReload = document.getElementById('btnBrowserReload');
+    const btnHome = document.getElementById('btnBrowserHome');
+
+    if (btnBack) btnBack.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('back'); });
+    if (btnForward) btnForward.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('forward'); });
+    if (btnReload) btnReload.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('reload'); });
+    if (btnHome) btnHome.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('home'); });
+});
+
 let taskCounter = 0;
 // === Tab Navigation ===
 const tabPanelBtn = document.getElementById('tabPanel');
-const tabDigenBtn = document.getElementById('tabDigen');
-const tabFlowBtn = document.getElementById('tabFlow');
-const tabMetaBtn = document.getElementById('tabMeta');
+const tabGeradoresBtn = document.getElementById('tabGeradores');
 const tabCharactersBtn = document.getElementById('tabCharacters');
 const tabVideoEditorBtn = document.getElementById('tabVideoEditor');
 const panelArea = document.getElementById('panelArea');
 const characterArea = document.getElementById('characterArea');
+const geradoresArea = document.getElementById('geradoresArea');
+
+const cardDigen = document.getElementById('cardDigen');
+const cardFlow = document.getElementById('cardFlow');
+const cardMeta = document.getElementById('cardMeta');
+
+const tabStudioBtn = document.getElementById('tabStudio');
+const tabSettingsBtn = document.getElementById('tabSettings');
+const studioArea = document.getElementById('studioArea');
+const settingsArea = document.getElementById('settingsArea');
 
 function resetTabs() {
-    tabPanelBtn.classList.remove('active');
-    tabDigenBtn.classList.remove('active');
-    tabFlowBtn.classList.remove('active');
-    tabMetaBtn.classList.remove('active');
-    tabCharactersBtn.classList.remove('active');
+    if (tabPanelBtn) tabPanelBtn.classList.remove('active');
+    if (tabGeradoresBtn) tabGeradoresBtn.classList.remove('active');
+    if (tabCharactersBtn) tabCharactersBtn.classList.remove('active');
     if (tabVideoEditorBtn) tabVideoEditorBtn.classList.remove('active');
-    panelArea.classList.add('hidden');
-    characterArea.classList.add('hidden');
+    if (tabStudioBtn) tabStudioBtn.classList.remove('active');
+    if (tabSettingsBtn) tabSettingsBtn.classList.remove('active');
+    if (typeof tabEspiaoBtn !== 'undefined' && tabEspiaoBtn) tabEspiaoBtn.classList.remove('active');
+    
+    if (panelArea) panelArea.classList.add('hidden');
+    if (characterArea) characterArea.classList.add('hidden');
+    if (geradoresArea) geradoresArea.classList.add('hidden');
+    if (studioArea) studioArea.classList.add('hidden');
+    if (settingsArea) settingsArea.classList.add('hidden');
 }
 
-tabPanelBtn.addEventListener('click', () => {
-    resetTabs();
-    tabPanelBtn.classList.add('active');
-    panelArea.classList.remove('hidden');
-    window.api.switchTab('panel', getSidebarWidth());
-});
+if (tabPanelBtn) {
+    tabPanelBtn.addEventListener('click', () => {
+        resetTabs();
+        tabPanelBtn.classList.add('active');
+        panelArea.classList.remove('hidden');
+        updateBrowserControls('panel');
+        window.api.switchTab('panel', getSidebarWidth());
+    });
+}
 
-tabDigenBtn.addEventListener('click', () => {
-    resetTabs();
-    tabDigenBtn.classList.add('active');
-    window.api.switchTab('digen', getSidebarWidth());
-});
+if (tabGeradoresBtn) {
+    tabGeradoresBtn.addEventListener('click', () => {
+        resetTabs();
+        tabGeradoresBtn.classList.add('active');
+        geradoresArea.classList.remove('hidden');
+        updateBrowserControls('panel');
+        window.api.switchTab('panel', getSidebarWidth());
+    });
+}
 
-tabFlowBtn.addEventListener('click', () => {
-    resetTabs();
-    tabFlowBtn.classList.add('active');
-    window.api.switchTab('flow', getSidebarWidth());
-});
+if (cardDigen) {
+    cardDigen.addEventListener('click', () => {
+        resetTabs();
+        if (tabGeradoresBtn) tabGeradoresBtn.classList.add('active');
+        updateBrowserControls('digen');
+        window.api.switchTab('digen', getSidebarWidth());
+    });
+}
 
-tabCharactersBtn.addEventListener('click', () => {
-    resetTabs();
-    tabCharactersBtn.classList.add('active');
-    characterArea.classList.remove('hidden');
-    window.api.switchTab('panel', getSidebarWidth()); // hide digen view to show normal html panels
-});
+if (cardFlow) {
+    cardFlow.addEventListener('click', () => {
+        resetTabs();
+        if (tabGeradoresBtn) tabGeradoresBtn.classList.add('active');
+        updateBrowserControls('flow');
+        window.api.switchTab('flow', getSidebarWidth());
+    });
+}
 
-tabMetaBtn.addEventListener('click', () => {
-    resetTabs();
-    tabMetaBtn.classList.add('active');
-    window.api.switchTab('meta', getSidebarWidth());
-});
+if (cardMeta) {
+    cardMeta.addEventListener('click', () => {
+        resetTabs();
+        if (tabGeradoresBtn) tabGeradoresBtn.classList.add('active');
+        updateBrowserControls('meta');
+        window.api.switchTab('meta', getSidebarWidth());
+    });
+}
+
+if (tabCharactersBtn) {
+    tabCharactersBtn.addEventListener('click', () => {
+        resetTabs();
+        tabCharactersBtn.classList.add('active');
+        characterArea.classList.remove('hidden');
+        updateBrowserControls('panel');
+        window.api.switchTab('panel', getSidebarWidth());
+    });
+}
 
 if (tabVideoEditorBtn) {
     tabVideoEditorBtn.addEventListener('click', () => {
         resetTabs();
         tabVideoEditorBtn.classList.add('active');
+        updateBrowserControls('video_editor');
         window.api.switchTab('video_editor', getSidebarWidth());
     });
 }
+
+const tabEspiaoBtn = document.getElementById('tabEspiao');
+if (tabEspiaoBtn) {
+    tabEspiaoBtn.addEventListener('click', () => {
+        resetTabs();
+        tabEspiaoBtn.classList.add('active');
+        updateBrowserControls('espiao');
+        window.api.switchTab('espiao', getSidebarWidth());
+    });
+}
+
+if (tabStudioBtn) {
+    tabStudioBtn.addEventListener('click', () => {
+        resetTabs();
+        tabStudioBtn.classList.add('active');
+        studioArea.classList.remove('hidden');
+        window.api.switchTab('panel', getSidebarWidth());
+        loadStudioTools();
+    });
+}
+
+if (tabSettingsBtn) {
+    tabSettingsBtn.addEventListener('click', () => {
+        resetTabs();
+        tabSettingsBtn.classList.add('active');
+        settingsArea.classList.remove('hidden');
+        window.api.switchTab('panel', getSidebarWidth());
+    });
+}
+
+async function loadStudioTools() {
+    const studioGrid = document.getElementById('studioGrid');
+    if (!studioGrid) return;
+    studioGrid.innerHTML = '';
+    
+    if (window.api && window.api.getTools) {
+        const tools = await window.api.getTools();
+        if (tools.length === 0) {
+            studioGrid.innerHTML = '<p style="color: var(--text-muted); grid-column: 1 / -1;">Nenhuma ferramenta encontrada na pasta Ferramentas.</p>';
+            return;
+        }
+        
+        tools.forEach(tool => {
+            const card = document.createElement('div');
+            card.className = 'generator-card';
+            card.innerHTML = `
+                <div class="card-icon">🛠️</div>
+                <div class="card-title">${tool.name || tool.id}</div>
+                <div class="card-desc">${tool.description || ''}</div>
+            `;
+            card.addEventListener('click', async () => {
+                const originalText = card.innerHTML;
+                card.innerHTML = `<div class="card-icon">⏳</div><div class="card-title">Iniciando...</div>`;
+                
+                try {
+                    const result = await window.api.startTool(tool.id);
+                    if (result.url) {
+                        resetTabs();
+                        if (tabStudioBtn) tabStudioBtn.classList.add('active');
+                        updateBrowserControls('tool');
+                        window.api.openToolView(result.url, getSidebarWidth());
+                    } else {
+                        alert('Erro ao iniciar a ferramenta: ' + (result.error || 'Desconhecido'));
+                    }
+                } catch (e) {
+                    alert('Erro de IPC: ' + e.message);
+                }
+                
+                card.innerHTML = originalText;
+            });
+            studioGrid.appendChild(card);
+        });
+    }
+}
+
+// Settings Persistence - Global API Keys (List)
+const geminiApiKeyFile = document.getElementById('geminiApiKeyFile');
+const apiKeyCountDisplay = document.getElementById('apiKeyCountDisplay');
+const clearApiKeysBtn = document.getElementById('clearApiKeysBtn');
+
+function updateApiKeysDisplay() {
+    if (!apiKeyCountDisplay) return;
+    const keys = JSON.parse(localStorage.getItem('digenApiKeys') || '[]');
+    apiKeyCountDisplay.innerText = `${keys.length} chaves carregadas`;
+    if (clearApiKeysBtn) {
+        clearApiKeysBtn.style.display = keys.length > 0 ? 'inline-block' : 'none';
+    }
+}
+
+if (geminiApiKeyFile) {
+    geminiApiKeyFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const text = ev.target.result;
+            const keys = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            if (keys.length > 0) {
+                localStorage.setItem('digenApiKeys', JSON.stringify(keys));
+                updateApiKeysDisplay();
+                alert(`${keys.length} chaves importadas com sucesso!`);
+            } else {
+                alert('Nenhuma chave encontrada no arquivo.');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    });
+}
+
+if (clearApiKeysBtn) {
+    clearApiKeysBtn.addEventListener('click', () => {
+        if(confirm('Tem certeza que deseja limpar todas as chaves?')) {
+            localStorage.setItem('digenApiKeys', JSON.stringify([]));
+            updateApiKeysDisplay();
+        }
+    });
+}
+
+const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener('click', () => {
+        const originalText = saveSettingsBtn.innerText;
+        saveSettingsBtn.innerText = '✅ Configurações Salvas!';
+        setTimeout(() => {
+            saveSettingsBtn.innerText = originalText;
+        }, 2000);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', updateApiKeysDisplay);
 
 
 // === Digen Conditional Architecture ===
@@ -221,9 +424,14 @@ function initDigenReactivity() {
             }
             const chars = JSON.parse(localStorage.getItem('digenCharacters') || '[]');
             const charData = chars.find(c => c.id === selectedCharId);
-            if (charData && charData.imageBase64) {
-                vaultPreviewImage.src = charData.imageBase64;
-                vaultPreviewContainer.style.display = 'block';
+            if (charData) {
+                const images = charData.images || (charData.imageBase64 ? [charData.imageBase64] : []);
+                if (images.length > 0) {
+                    vaultPreviewImage.src = images[0];
+                    vaultPreviewContainer.style.display = 'block';
+                } else {
+                    vaultPreviewContainer.style.display = 'none';
+                }
             } else {
                 vaultPreviewContainer.style.display = 'none';
             }
@@ -515,12 +723,12 @@ function buildAndFireTasks(imagesList, promptsList, mode, platform, baseConfig, 
     }
 
     // Auto-switch to destination platform
-    if (platform === 'digen') {
-        document.getElementById('tabDigen').click();
-    } else if (platform === 'flow') {
-        document.getElementById('tabFlow').click();
-    } else if (platform === 'meta') {
-        document.getElementById('tabMeta').click();
+    if (platform === 'digen' && cardDigen) {
+        cardDigen.click();
+    } else if (platform === 'flow' && cardFlow) {
+        cardFlow.click();
+    } else if (platform === 'meta' && cardMeta) {
+        cardMeta.click();
     }
 }
 
@@ -613,13 +821,45 @@ function loadCharacters() {
     select.innerHTML = '<option value="">Nenhum / Padrão</option>';
     
     chars.forEach(char => {
+        // Migration and normalization check
+        let normalizedImages = [];
+        const oldImages = char.images || (char.imageBase64 ? [char.imageBase64] : []);
+        
+        oldImages.forEach(img => {
+            if (typeof img === 'string') {
+                normalizedImages.push({ type: 'digen', base64: img });
+            } else if (img && img.base64) {
+                normalizedImages.push(img);
+            }
+        });
+        
+        char.images = normalizedImages;
+        if (char.images.length === 0) return;
+        
+        // Find a representative image (prefer digen/geral)
+        const mainImageObj = char.images.find(i => i.type === 'digen') || char.images[0];
+        const mainImage = mainImageObj.base64;
+
+        // Count tags for badges
+        const countMap = {};
+        char.images.forEach(img => {
+            countMap[img.type] = (countMap[img.type] || 0) + 1;
+        });
+        
+        let badgesHtml = '';
+        if (countMap['digen']) badgesHtml += `<span style="display:inline-block; margin:2px; padding:2px 4px; background:#4f46e5; color:white; border-radius:4px; font-size:9px;">Geral: ${countMap['digen']}</span>`;
+        if (countMap['veo_element']) badgesHtml += `<span style="display:inline-block; margin:2px; padding:2px 4px; background:#0ea5e9; color:white; border-radius:4px; font-size:9px;">VEO Elem: ${countMap['veo_element']}</span>`;
+        if (countMap['veo_initial']) badgesHtml += `<span style="display:inline-block; margin:2px; padding:2px 4px; background:#10b981; color:white; border-radius:4px; font-size:9px;">VEO Início: ${countMap['veo_initial']}</span>`;
+        if (countMap['veo_final']) badgesHtml += `<span style="display:inline-block; margin:2px; padding:2px 4px; background:#ef4444; color:white; border-radius:4px; font-size:9px;">VEO Fim: ${countMap['veo_final']}</span>`;
+
         // Add to grid
         const div = document.createElement('div');
         div.className = 'char-card';
         div.innerHTML = `
-            <img src="${char.imageBase64}" alt="${char.name}">
+            <img src="${mainImage}" alt="${char.name}">
             <div class="char-name" title="${char.name}">${char.name}</div>
-            <button class="btn-delete-char" onclick="deleteCharacter('${char.id}')">Excluir</button>
+            <div style="margin-top: 4px; line-height: 1.2;">${badgesHtml}</div>
+            <button class="btn-delete-char" onclick="deleteCharacter('${char.id}')">Excluir Base</button>
         `;
         grid.appendChild(div);
         
@@ -636,24 +876,52 @@ if (saveCharBtn) {
     saveCharBtn.addEventListener('click', () => {
         const nameInput = document.getElementById('charName');
         const fileInput = document.getElementById('charImage');
+        const typeSelect = document.getElementById('charImageType');
         
         if (!nameInput.value.trim() || !fileInput.files[0]) {
             alert("Por favor, forneça um nome e selecione uma imagem.");
             return;
         }
         
+        const charName = nameInput.value.trim();
+        const imageType = typeSelect ? typeSelect.value : 'digen';
         const file = fileInput.files[0];
         const reader = new FileReader();
         
         reader.onload = function(e) {
             const base64Image = e.target.result;
             
-            const chars = JSON.parse(localStorage.getItem('digenCharacters') || '[]');
-            chars.push({
-                id: 'char_' + Date.now(),
-                name: nameInput.value.trim(),
-                imageBase64: base64Image
+            let chars = JSON.parse(localStorage.getItem('digenCharacters') || '[]');
+            
+            // Normalize existing and check for existing name
+            let existingChar = null;
+            chars = chars.map(c => {
+                let normalizedImages = [];
+                const oldImages = c.images || (c.imageBase64 ? [c.imageBase64] : []);
+                oldImages.forEach(img => {
+                    if (typeof img === 'string') {
+                        normalizedImages.push({ type: 'digen', base64: img });
+                    } else if (img && img.base64) {
+                        normalizedImages.push(img);
+                    }
+                });
+                c.images = normalizedImages;
+
+                if (c.name.toLowerCase() === charName.toLowerCase()) {
+                    existingChar = c;
+                }
+                return c;
             });
+            
+            if (existingChar) {
+                existingChar.images.push({ type: imageType, base64: base64Image });
+            } else {
+                chars.push({
+                    id: 'char_' + Date.now(),
+                    name: charName,
+                    images: [{ type: imageType, base64: base64Image }]
+                });
+            }
             
             localStorage.setItem('digenCharacters', JSON.stringify(chars));
             

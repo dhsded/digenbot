@@ -6,7 +6,8 @@
   "scripts": {
     "start": "electron .",
     "build:engine": "node-gyp rebuild",
-    "dev:ui": "cd video_studio/ui && npm run dev"
+    "dev:ui": "cd video_studio/ui && npm run dev",
+    "dev:espiao": "cd Ferramentas/espiao && npm run dev"
   },
   "devDependencies": {
     "electron": "^29.4.6",

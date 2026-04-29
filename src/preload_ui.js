@@ -7,5 +7,9 @@ contextBridge.exposeInMainWorld('api', {
     stopQueue: () => ipcRenderer.send('stop-queue'),
     toggleFooter: (visible) => ipcRenderer.send('toggle-footer', visible),
     selectFolder: () => ipcRenderer.invoke('select-folder'),
+    getTools: () => ipcRenderer.invoke('get-tools'),
+    startTool: (toolId) => ipcRenderer.invoke('start-tool', toolId),
+    openToolView: (url, width) => ipcRenderer.send('open-tool-view', url, width),
+    browserCommand: (cmd) => ipcRenderer.send('browser-command', cmd),
     onStatusUpdate: (callback) => ipcRenderer.on('ui-status-update', (event, data) => callback(data))
 });

@@ -133,6 +133,96 @@
             color: var(--text-main);
         }
 
+        .hub-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 380px);
+            grid-template-rows: repeat(2, 220px);
+            gap: 30px;
+            justify-content: center;
+            align-content: center;
+            flex: 1;
+        }
+
+        .generator-card {
+            background: var(--surface);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--glass-shadow);
+            position: relative;
+            overflow: hidden;
+            min-height: 200px;
+        }
+
+        .generator-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .generator-card:hover:not(.disabled-card) {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+            border-color: var(--primary);
+        }
+
+        .generator-card:hover:not(.disabled-card)::before {
+            opacity: 1;
+        }
+
+        .card-icon {
+            font-size: 54px;
+            margin-bottom: 15px;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+            z-index: 1;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 8px;
+            z-index: 1;
+        }
+
+        .card-desc {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            z-index: 1;
+        }
+
+        .disabled-card {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .badge-soon {
+            position: absolute;
+            top: 15px;
+            right: -30px;
+            background: var(--warning);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 4px 30px;
+            transform: rotate(45deg);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 2;
+        }
+
         /* Main Content Container */
         .content-area {
             flex: 1;
@@ -504,17 +594,25 @@
     </style>
 </head>
 <body>
+    <div id="browserControls" style="display: none; position: fixed; top: 0; right: 0; height: 40px; background: var(--bg-color); border-bottom: 1px solid var(--surface-border); z-index: 99; align-items: center; padding: 0 15px 0 45px; gap: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.5);">
+        <button id="btnBrowserBack" style="background: var(--input-bg); border: 1px solid var(--surface-border); color: var(--text-main); cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--input-bg)'">◀ Voltar</button>
+        <button id="btnBrowserForward" style="background: var(--input-bg); border: 1px solid var(--surface-border); color: var(--text-main); cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--input-bg)'">Avançar ▶</button>
+        <button id="btnBrowserReload" style="background: var(--input-bg); border: 1px solid var(--surface-border); color: var(--text-main); cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--input-bg)'">↻ Atualizar</button>
+        <button id="btnBrowserHome" style="background: var(--input-bg); border: 1px solid var(--surface-border); color: var(--text-main); cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--input-bg)'">🏠 Início</button>
+    </div>
 
     <div class="sidebar" id="sidebar">
         <button class="collapse-btn" id="sidebarToggleBtn">◀</button>
         <button class="tab-btn active" id="tabPanel"><span class="tab-icon">⚙️</span> <span class="tab-text">Painel Central</span></button>
         <button class="tab-btn" id="tabCharacters"><span class="tab-icon">👤</span> <span class="tab-text">Cofre de Personagens</span></button>
-        <button class="tab-btn" id="tabDigen"><span class="tab-icon">🌐</span> <span class="tab-text">DIGEN</span></button>
-        <button class="tab-btn" id="tabFlow"><span class="tab-icon">🌊</span> <span class="tab-text">FLOW</span></button>
-        <button class="tab-btn" id="tabMeta"><span class="tab-icon">♾️</span> <span class="tab-text">Meta AI</span></button>
+        
+        <button class="tab-btn" id="tabGeradores"><span class="tab-icon">⚡</span> <span class="tab-text">Geradores</span></button>
+        <button class="tab-btn" id="tabStudio"><span class="tab-icon">✨</span> <span class="tab-text">Studio</span></button>
         <button class="tab-btn" id="tabVideoEditor"><span class="tab-icon">🎬</span> <span class="tab-text">Editor de Vídeo</span></button>
+        <button class="tab-btn" id="tabEspiao"><span class="tab-icon">🕵️</span> <span class="tab-text">Espião</span></button>
         
         <div class="sidebar-footer" style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+            <button class="tab-btn" id="tabSettings"><span class="tab-icon">🛠️</span> <span class="tab-text">Configurações</span></button>
             <button id="toggleLogBtn" class="tab-btn" style="padding: 8px 12px;"><span class="tab-icon">📝</span> <span class="tab-text">Ocultar Log</span></button>
             <button id="themeToggleBtn" class="tab-btn" style="padding: 8px 12px;"><span class="tab-icon">🌗</span> <span class="tab-text">Tema Escuro</span></button>
         </div>
@@ -747,6 +845,15 @@
                     <label for="charImage">Imagem Local (Caminho ou Upload)</label>
                     <input type="file" id="charImage" accept="image/*" class="styled-input">
                 </div>
+                <div class="form-group" style="flex: 1; margin: 0;">
+                    <label for="charImageType">Função (I.A.)</label>
+                    <select id="charImageType" class="styled-select">
+                        <option value="digen">Geral (Digen/Meta)</option>
+                        <option value="veo_initial">VEO - Frame Inicial</option>
+                        <option value="veo_final">VEO - Frame Final</option>
+                        <option value="veo_element">VEO - Elemento</option>
+                    </select>
+                </div>
                 <button class="action-btn" id="saveCharBtn" style="width: auto; padding: 10px 20px;">💾 Salvar no Cofre</button>
             </div>
         </div>
@@ -756,6 +863,74 @@
             <div class="character-grid" id="characterGrid">
                 <!-- characters will be loaded here via JS -->
             </div>
+        </div>
+    </div>
+
+    <!-- GERADORES HUB PANEL -->
+    <div class="content-area hidden" id="geradoresArea">
+        <h1>⚡ Central de Geradores</h1>
+        <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 15px;">Selecione uma inteligência artificial para iniciar a criação.</p>
+        
+        <div class="hub-grid">
+            <div class="generator-card" id="cardDigen">
+                <div class="card-icon">🌐</div>
+                <div class="card-title">DIGEN</div>
+                <div class="card-desc">Criação de avatares super-realistas e locuções imersivas em vídeos.</div>
+            </div>
+            
+            <div class="generator-card" id="cardFlow">
+                <div class="card-icon">🌊</div>
+                <div class="card-title">Google Flow</div>
+                <div class="card-desc">Geração de mídia avançada utilizando a plataforma Labs do Google.</div>
+            </div>
+            
+            <div class="generator-card" id="cardMeta">
+                <div class="card-icon">♾️</div>
+                <div class="card-title">Meta AI</div>
+                <div class="card-desc">Geração contínua de imagens de alta qualidade via modelo da Meta.</div>
+            </div>
+            
+            <div class="generator-card disabled-card">
+                <div class="badge-soon">EM BREVE</div>
+                <div class="card-icon">✨</div>
+                <div class="card-title">GROK AI</div>
+                <div class="card-desc">Integração xAI para capacidades criativas incomparáveis.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STUDIO HUB PANEL -->
+    <div class="content-area hidden" id="studioArea">
+        <h1>✨ Studio de Ferramentas</h1>
+        <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 15px;">Ferramentas instaladas no diretório local.</p>
+        
+        <div class="hub-grid" id="studioGrid">
+            <!-- Ferramentas dynamically loaded here -->
+        </div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div class="content-area hidden" id="settingsArea">
+        <h1>🛠️ Configurações e Chaves API</h1>
+        <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 15px;">Gerencie suas credenciais para as ferramentas do Studio.</p>
+        
+        <div class="glass-panel" style="max-width: 600px;">
+            <h3>Chaves de API</h3>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>Google Gemini API Keys (Lista .txt)</label>
+                <div style="border: 2px dashed var(--surface-border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; position: relative;" id="apiKeyUploadBox" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--surface-border)'">
+                    <input type="file" id="geminiApiKeyFile" accept=".txt" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+                    <div style="font-size: 24px; margin-bottom: 10px;">📄</div>
+                    <div style="font-weight: 600; color: var(--primary); margin-bottom: 5px;">Clique ou arraste um arquivo .txt</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Uma chave por linha</div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                    <span style="font-size: 12px; color: var(--text-muted);" id="apiKeyCountDisplay">0 chaves carregadas</span>
+                    <button id="clearApiKeysBtn" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: none;">Limpar Chaves</button>
+                </div>
+            </div>
+            
+            <button class="action-btn" id="saveSettingsBtn" style="margin-top: 20px;">💾 Salvar Configurações</button>
         </div>
     </div>
 

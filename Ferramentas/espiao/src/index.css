@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-base:       #080b14;
+  --bg-surface:    #0d1120;
+  --bg-card:       #111827;
+  --bg-card-hover: #161e30;
+  --bg-input:      #0d1120;
+  --border:        rgba(99, 120, 180, 0.15);
+  --border-focus:  rgba(99, 179, 237, 0.5);
+
+  --accent:        #3b82f6;
+  --accent-2:      #8b5cf6;
+  --accent-glow:   rgba(59, 130, 246, 0.25);
+  --accent-grad:   linear-gradient(135deg, #3b82f6, #8b5cf6);
+
+  --text-primary:  #f1f5f9;
+  --text-secondary:#94a3b8;
+  --text-muted:    #475569;
+
+  --green:  #22c55e;
+  --yellow: #f59e0b;
+  --red:    #ef4444;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--bg-base);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(99,120,180,0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99,120,180,0.55); }
+
+/* ── Utility ───────────────────────────────────────────── */
+.truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
