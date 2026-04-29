@@ -7,12 +7,12 @@
 }
 
 :root {
-  --bg-base:       #080b14;
-  --bg-surface:    #0d1120;
-  --bg-card:       #111827;
-  --bg-card-hover: #161e30;
-  --bg-input:      #0d1120;
-  --border:        rgba(99, 120, 180, 0.15);
+  --bg-base:       #0e1219;
+  --bg-surface:    #141a28;
+  --bg-card:       #1a2233;
+  --bg-card-hover: #202d42;
+  --bg-input:      #141a28;
+  --border:        rgba(99, 130, 200, 0.2);
   --border-focus:  rgba(99, 179, 237, 0.5);
 
   --accent:        #3b82f6;
@@ -21,8 +21,8 @@
   --accent-grad:   linear-gradient(135deg, #3b82f6, #8b5cf6);
 
   --text-primary:  #f1f5f9;
-  --text-secondary:#94a3b8;
-  --text-muted:    #475569;
+  --text-secondary:#b8c5d6;
+  --text-muted:    #8899b0;
 
   --green:  #22c55e;
   --yellow: #f59e0b;

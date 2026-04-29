@@ -185,7 +185,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       javascript: true,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      webSecurity: false  // Allow cross-origin images (YouTube CDN)
     }
   });
 
@@ -539,16 +540,33 @@ function createWindow() {
   });
 
   // ── YouTube Scraper ────────────────────────────────────────────────────────
+  // Date filter sp params for video search (protobuf-encoded YouTube filters)
+  const VIDEO_DATE_SP = {
+    'any':   '',
+    'hour':  'EgIIAQ%3D%3D',
+    'today': 'EgIIAg%3D%3D',
+    'week':  'EgIIAw%3D%3D',
+    'month': 'EgIIBA%3D%3D',
+    'year':  'EgIIBQ%3D%3D',
+  };
+
   ipcMain.handle('youtube-search', async (_event, { query, mode, filters = {} }) => {
     const encoded = encodeURIComponent(query);
     const hl = filters.language === 'en' ? 'en' : filters.language === 'es' ? 'es' : 'pt-BR';
+    const maxResults = Math.min(filters.maxResults || 20, 50);
 
-    // sp=EgIQAg%3D%3D → filter for Channels only
-    const url = mode === 'canais'
-      ? `https://www.youtube.com/results?search_query=${encoded}&sp=EgIQAg%3D%3D&hl=${hl}`
-      : `https://www.youtube.com/results?search_query=${encoded}&hl=${hl}`;
+    // Build the sp (search params) filter
+    let sp;
+    if (mode === 'canais') {
+      sp = 'EgIQAg%3D%3D'; // Channel type filter
+    } else {
+      sp = VIDEO_DATE_SP[filters.dateRange] || '';
+    }
 
-    const selector = mode === 'canais' ? 'ytd-channel-renderer' : 'ytd-video-renderer';
+    const spParam = sp ? `&sp=${sp}` : '';
+    const url = `https://www.youtube.com/results?search_query=${encoded}${spParam}&hl=${hl}`;
+
+    console.log(`[Scraper] Searching: ${url} (mode=${mode}, max=${maxResults})`);
 
     try {
       // Load the search page
@@ -558,7 +576,7 @@ function createWindow() {
         scraperView.webContents.loadURL(url);
       });
 
-      // Dismiss cookie consent if present (EU)
+      // Dismiss cookie consent if present (EU/BR)
       try {
         await scraperView.webContents.executeJavaScript(`
           (function(){
@@ -569,76 +587,201 @@ function createWindow() {
         await new Promise(r => setTimeout(r, 800));
       } catch(_) {}
 
-      // Poll until result elements appear (YouTube is a SPA)
-      const maxWait = 15000;
-      const pollStart = Date.now();
-      let found = false;
-      while (Date.now() - pollStart < maxWait) {
-        const count = await scraperView.webContents.executeJavaScript(
-          `document.querySelectorAll('${selector}').length`
-        );
-        if (count > 0) { found = true; break; }
-        await new Promise(r => setTimeout(r, 600));
-      }
+      // Wait for YouTube SPA to hydrate and populate ytInitialData
+      await new Promise(r => setTimeout(r, 2500));
 
-      if (!found) return { success: false, error: 'Sem resultados ou página não carregou.', data: [] };
-
-      // ── Extract channel data ────────────────────────────────────────────
+      // ── Extract data from ytInitialData (JSON) ─────────────────────────
       if (mode === 'canais') {
-        const data = await scraperView.webContents.executeJavaScript(`
+        const rawResult = await scraperView.webContents.executeJavaScript(`
           (function(){
-            return Array.from(document.querySelectorAll('ytd-channel-renderer')).slice(0,25).map(el => {
-              const name =
-                el.querySelector('#channel-title .yt-formatted-string')?.textContent?.trim() ||
-                el.querySelector('#channel-title yt-formatted-string')?.textContent?.trim() ||
-                el.querySelector('#text.ytd-channel-name')?.textContent?.trim() || '';
-              const handle =
-                el.querySelector('[id*="handle"]')?.textContent?.trim() ||
-                el.querySelector('.ytd-channel-renderer #channel-handle')?.textContent?.trim() || '';
-              const subs =
-                el.querySelector('#subscribers')?.textContent?.trim() || '0';
-              const videoCount =
-                el.querySelector('#video-count')?.textContent?.trim() || '0';
-              const description =
-                el.querySelector('yt-attributed-string.ytd-channel-renderer')?.textContent?.trim() ||
-                el.querySelector('#description-text')?.textContent?.trim() || '';
-              const link = el.querySelector('a#main-link, a.channel-link, a[href*="/@"]');
-              const url = link?.href || '';
-              const avatarUrl =
-                el.querySelector('yt-img-shadow img')?.src ||
-                el.querySelector('#avatar img')?.src || '';
-              return { name, handle, subs, videoCount, description, url, avatarUrl };
-            }).filter(c => c.name);
+            try {
+              const yt = window.ytInitialData;
+              if (!yt) return { dbg: 'ytInitialData is null', items: [] };
+              const sections = yt.contents?.twoColumnSearchResultsRenderer
+                ?.primaryContents?.sectionListRenderer?.contents || [];
+              if (!sections.length) return { dbg: 'no sections', items: [] };
+              const results = [];
+              for (const section of sections) {
+                const sItems = section?.itemSectionRenderer?.contents || [];
+                for (const item of sItems) {
+                  const ch = item.channelRenderer;
+                  if (!ch) continue;
+                  const name = ch.title?.simpleText || '';
+                  if (!name) continue;
+                  const channelId = ch.channelId || '';
+                  const canonicalUrl = ch.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || '';
+                  const handle = canonicalUrl || ('@' + channelId);
+                  const thumbs = ch.thumbnail?.thumbnails || [];
+                  let avatarUrl = thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '';
+                  if (avatarUrl.startsWith('//')) avatarUrl = 'https:' + avatarUrl;
+                  if (avatarUrl.includes('=s')) avatarUrl = avatarUrl.replace(/=s[0-9]+-/, '=s176-');
+                  const subs = ch.subscriberCountText?.simpleText || '0';
+                  const videoCount = ch.videoCountText?.runs
+                    ? ch.videoCountText.runs.map(function(r){return r.text}).join('')
+                    : (ch.videoCountText?.simpleText || '0');
+                  const description = ch.descriptionSnippet?.runs
+                    ? ch.descriptionSnippet.runs.map(function(r){return r.text}).join('')
+                    : '';
+                  const urlPath = canonicalUrl
+                    || ch.navigationEndpoint?.commandMetadata?.webCommandMetadata?.url
+                    || '/channel/' + channelId;
+                  const url = 'https://www.youtube.com' + urlPath;
+                  results.push({ name: name, handle: handle, subs: subs, videoCount: videoCount, description: description, url: url, avatarUrl: avatarUrl });
+                }
+              }
+              return { dbg: 'ok sections=' + sections.length, items: results };
+            } catch(e) {
+              return { dbg: 'err:' + e.message, items: [] };
+            }
           })()
         `);
-        return { success: true, data };
+
+        const items = rawResult?.items || [];
+        console.log('[Scraper] Channel debug:', rawResult?.dbg, '| found:', items.length);
+        if (items.length === 0) {
+          return { success: false, error: 'Nenhum canal encontrado. (' + (rawResult?.dbg || '?') + ')', data: [] };
+        }
+
+        // If we need more results than ytInitialData provided, scroll and extract from DOM
+        if (items.length < maxResults) {
+          console.log('[Scraper] Need more results (' + items.length + '/' + maxResults + '), scrolling...');
+          const knownUrls = new Set(items.map(i => i.url));
+          // Scroll multiple times to trigger YouTube's infinite scroll
+          for (let i = 0; i < 4; i++) {
+            await scraperView.webContents.executeJavaScript('window.scrollTo(0, document.documentElement.scrollHeight)');
+            await new Promise(r => setTimeout(r, 1500));
+          }
+          // Extract additional channels from DOM
+          const extraItems = await scraperView.webContents.executeJavaScript(`
+            (function(){
+              try {
+                return Array.from(document.querySelectorAll('ytd-channel-renderer')).map(function(el){
+                  var name = (el.querySelector('#channel-title yt-formatted-string') || el.querySelector('#channel-title .yt-formatted-string'))?.textContent?.trim() || '';
+                  if (!name) return null;
+                  var link = el.querySelector('a#main-link, a.channel-link');
+                  var url = link?.href || '';
+                  var handle = el.querySelector('#channel-handle')?.textContent?.trim() || '';
+                  var subs = el.querySelector('#subscribers')?.textContent?.trim() || '0';
+                  var videoCount = el.querySelector('#video-count')?.textContent?.trim() || '0';
+                  var desc = (el.querySelector('#description-text') || el.querySelector('yt-attributed-string'))?.textContent?.trim() || '';
+                  var img = el.querySelector('yt-img-shadow img, #avatar img');
+                  var avatarUrl = img?.src || '';
+                  if (avatarUrl.startsWith('//')) avatarUrl = 'https:' + avatarUrl;
+                  return { name: name, handle: handle, subs: subs, videoCount: videoCount, description: desc, url: url, avatarUrl: avatarUrl };
+                }).filter(function(c){ return c !== null; });
+              } catch(e) { return []; }
+            })()
+          `);
+          // Merge: add only new channels not already in items
+          for (const extra of extraItems) {
+            if (extra.url && !knownUrls.has(extra.url)) {
+              knownUrls.add(extra.url);
+              items.push(extra);
+            }
+          }
+          console.log('[Scraper] After scroll+DOM merge: total', items.length);
+        }
+
+        return { success: true, data: items.slice(0, maxResults) };
       }
 
-      // ── Extract video data ──────────────────────────────────────────────
-      const data = await scraperView.webContents.executeJavaScript(`
+      // ── Videos mode ──────────────────────────────────────────────────────
+      const rawResult = await scraperView.webContents.executeJavaScript(`
         (function(){
-          return Array.from(document.querySelectorAll('ytd-video-renderer')).slice(0,25).map(el => {
-            const titleEl = el.querySelector('a#video-title, #video-title');
-            const title = titleEl?.textContent?.trim() || '';
-            const href = titleEl?.getAttribute('href') || '';
-            const url = href.startsWith('http') ? href : ('https://www.youtube.com' + href);
-            const channelEl = el.querySelector('#channel-name a');
-            const channelName = channelEl?.textContent?.trim() || '';
-            const channelUrl = channelEl?.href || '';
-            const metas = el.querySelectorAll('#metadata-line span.inline-metadata-item');
-            const viewCount = metas[0]?.textContent?.trim() || '0';
-            const publishedAt = metas[1]?.textContent?.trim() || '';
-            const durationEl =
-              el.querySelector('ytd-thumbnail-overlay-time-status-renderer span#text') ||
-              el.querySelector('.ytd-thumbnail-overlay-time-status-renderer span');
-            const duration = durationEl?.textContent?.trim() || '';
-            const imgEl = el.querySelector('#thumbnail img, yt-image img');
-            const thumbnailUrl = imgEl?.src || imgEl?.getAttribute('data-src') || '';
-            return { title, url, channelName, channelUrl, viewCount, publishedAt, duration, thumbnailUrl };
-          }).filter(v => v.title);
+          try {
+            const yt = window.ytInitialData;
+            if (!yt) return { dbg: 'ytInitialData is null', items: [] };
+            const sections = yt.contents?.twoColumnSearchResultsRenderer
+              ?.primaryContents?.sectionListRenderer?.contents || [];
+            if (!sections.length) return { dbg: 'no sections', items: [] };
+            const results = [];
+            for (const section of sections) {
+              const sItems = section?.itemSectionRenderer?.contents || [];
+              for (const item of sItems) {
+                const v = item.videoRenderer;
+                if (!v) continue;
+                const title = v.title?.runs ? v.title.runs.map(function(r){return r.text}).join('') : '';
+                if (!title) continue;
+                const videoId = v.videoId || '';
+                const url = 'https://www.youtube.com/watch?v=' + videoId;
+                const thumbs = v.thumbnail?.thumbnails || [];
+                let thumbnailUrl = thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '';
+                if (thumbnailUrl.startsWith('//')) thumbnailUrl = 'https:' + thumbnailUrl;
+                const channelName = v.ownerText?.runs?.[0]?.text || '';
+                const channelUrlPath = v.ownerText?.runs?.[0]?.navigationEndpoint
+                  ?.browseEndpoint?.canonicalBaseUrl || '';
+                const channelUrl = channelUrlPath ? 'https://www.youtube.com' + channelUrlPath : '';
+                const chThumbs = v.channelThumbnailSupportedRenderers
+                  ?.channelThumbnailWithLinkRenderer?.thumbnail?.thumbnails || [];
+                let channelAvatarUrl = chThumbs.length > 0 ? chThumbs[chThumbs.length - 1].url : '';
+                if (channelAvatarUrl.startsWith('//')) channelAvatarUrl = 'https:' + channelAvatarUrl;
+                const viewCount = v.viewCountText?.simpleText
+                  || (v.viewCountText?.runs ? v.viewCountText.runs.map(function(r){return r.text}).join('') : '0');
+                const publishedAt = v.publishedTimeText?.simpleText || '';
+                const duration = v.lengthText?.simpleText || '';
+                results.push({ title: title, url: url, thumbnailUrl: thumbnailUrl, channelName: channelName,
+                  channelUrl: channelUrl, channelAvatarUrl: channelAvatarUrl, viewCount: viewCount,
+                  publishedAt: publishedAt, duration: duration });
+              }
+            }
+            return { dbg: 'ok sections=' + sections.length, items: results };
+          } catch(e) {
+            return { dbg: 'err:' + e.message, items: [] };
+          }
         })()
       `);
-      return { success: true, data };
+
+      const videoItems = rawResult?.items || [];
+      console.log('[Scraper] Video debug:', rawResult?.dbg, '| found:', videoItems.length);
+      if (videoItems.length === 0) {
+        return { success: false, error: 'Nenhum vídeo encontrado. (' + (rawResult?.dbg || '?') + ')', data: [] };
+      }
+
+      // If we need more, scroll and extract from DOM
+      if (videoItems.length < maxResults) {
+        console.log('[Scraper] Need more videos (' + videoItems.length + '/' + maxResults + '), scrolling...');
+        const knownUrls = new Set(videoItems.map(i => i.url));
+        for (let i = 0; i < 4; i++) {
+          await scraperView.webContents.executeJavaScript('window.scrollTo(0, document.documentElement.scrollHeight)');
+          await new Promise(r => setTimeout(r, 1500));
+        }
+        const extraVids = await scraperView.webContents.executeJavaScript(`
+          (function(){
+            try {
+              return Array.from(document.querySelectorAll('ytd-video-renderer')).map(function(el){
+                var titleEl = el.querySelector('a#video-title, #video-title');
+                var title = titleEl?.textContent?.trim() || '';
+                if (!title) return null;
+                var href = titleEl?.getAttribute('href') || '';
+                var url = href.startsWith('http') ? href : 'https://www.youtube.com' + href;
+                var chEl = el.querySelector('#channel-name a');
+                var channelName = chEl?.textContent?.trim() || '';
+                var channelUrl = chEl?.href || '';
+                var img = el.querySelector('#thumbnail img, yt-image img');
+                var thumbnailUrl = img?.src || '';
+                if (thumbnailUrl.startsWith('//')) thumbnailUrl = 'https:' + thumbnailUrl;
+                var metas = el.querySelectorAll('#metadata-line span.inline-metadata-item');
+                var viewCount = metas[0]?.textContent?.trim() || '0';
+                var publishedAt = metas[1]?.textContent?.trim() || '';
+                var durEl = el.querySelector('ytd-thumbnail-overlay-time-status-renderer span#text');
+                var duration = durEl?.textContent?.trim() || '';
+                return { title:title, url:url, thumbnailUrl:thumbnailUrl, channelName:channelName,
+                  channelUrl:channelUrl, channelAvatarUrl:'', viewCount:viewCount,
+                  publishedAt:publishedAt, duration:duration };
+              }).filter(function(v){ return v !== null; });
+            } catch(e) { return []; }
+          })()
+        `);
+        for (const extra of extraVids) {
+          if (extra.url && !knownUrls.has(extra.url)) {
+            knownUrls.add(extra.url);
+            videoItems.push(extra);
+          }
+        }
+        console.log('[Scraper] After scroll+DOM merge: total videos', videoItems.length);
+      }
+
+      return { success: true, data: videoItems.slice(0, maxResults) };
 
     } catch (err) {
       console.error('[Scraper] Error:', err);

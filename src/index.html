@@ -26,20 +26,20 @@
 
         [data-theme="light"] {
             /* Novo Tema Claro (Mais Suave e Agradável) */
-            --bg-color: #d1d5db; 
-            --surface: rgba(243, 244, 246, 0.95);
+            --bg-color: #e5e7eb; 
+            --surface: rgba(255, 255, 255, 0.95);
             --surface-border: rgba(0, 0, 0, 0.15);
             --primary: #0284c7; 
             --primary-hover: #0369a1;
-            --text-main: #1f2937;
-            --text-muted: #4b5563;
+            --text-main: #111827;
+            --text-muted: #374151;
             --success: #059669;
             --warning: #d97706;
-            --input-bg: rgba(255, 255, 255, 0.7);
+            --input-bg: rgba(255, 255, 255, 0.85);
             --topbar-bg: #ffffff;
-            --active-tab-bg: #e2e8f0;
+            --active-tab-bg: #dbeafe;
             --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            --bg-gradient: radial-gradient(circle at 15% 10%, #e5e7eb 0%, var(--bg-color) 80%);
+            --bg-gradient: radial-gradient(circle at 15% 10%, #f3f4f6 0%, var(--bg-color) 80%);
         }
 
         * {
@@ -339,10 +339,10 @@
             position: absolute;
             cursor: pointer;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(255,255,255,0.1);
+            background-color: rgba(128,128,128,0.25);
             transition: .3s;
             border-radius: 24px;
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid var(--surface-border);
         }
         .toggle-switch .slider:before {
             position: absolute;
@@ -379,7 +379,7 @@
         }
 
         .btn-clear {
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--input-bg);
             color: var(--text-main);
             border: 1px solid var(--surface-border);
             border-radius: 6px;
@@ -391,7 +391,7 @@
         }
 
         .btn-clear:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--active-tab-bg);
         }
 
         .mode-selector {
@@ -424,10 +424,10 @@
         }
 
         .mode-selector label:has(input:checked) {
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--active-tab-bg);
             color: var(--text-main);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+            border: 1px solid var(--surface-border);
         }
 
         .action-btn {
@@ -509,7 +509,7 @@
             font-size: 10px;
             padding: 2px 6px;
             border-radius: 4px;
-            background: #333;
+            background: var(--surface-border);
             text-transform: uppercase;
             font-weight: 800;
         }
