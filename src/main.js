@@ -1,5 +1,6 @@
 const { app, BrowserWindow, BrowserView, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 const net = require('net');
 
@@ -552,8 +553,9 @@ function createWindow() {
 
   ipcMain.handle('youtube-search', async (_event, { query, mode, filters = {} }) => {
     const encoded = encodeURIComponent(query);
-    const hl = filters.language === 'en' ? 'en' : filters.language === 'es' ? 'es' : 'pt-BR';
-    const maxResults = Math.min(filters.maxResults || 20, 50);
+    const hl = filters.hl || 'pt-BR';
+    const gl = filters.gl || '';
+    const maxResults = Math.min(filters.maxResults || 30, 200);
 
     // Build the sp (search params) filter
     let sp;
@@ -564,16 +566,22 @@ function createWindow() {
     }
 
     const spParam = sp ? `&sp=${sp}` : '';
-    const url = `https://www.youtube.com/results?search_query=${encoded}${spParam}&hl=${hl}`;
+    const glParam = gl ? `&gl=${gl}` : '';
+    const url = `https://www.youtube.com/results?search_query=${encoded}${spParam}&hl=${hl}${glParam}`;
 
     console.log(`[Scraper] Searching: ${url} (mode=${mode}, max=${maxResults})`);
 
     try {
-      // Load the search page
+      // Clear cookies to prevent YouTube from forcing the local IP's language/region
+      await scraperView.webContents.session.clearStorageData({ storages: ['cookies'] });
+
+      // Load the search page with explicit language headers
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Page load timeout')), 30000);
         scraperView.webContents.once('did-finish-load', () => { clearTimeout(timeout); resolve(); });
-        scraperView.webContents.loadURL(url);
+        scraperView.webContents.loadURL(url, {
+          extraHeaders: `Accept-Language: ${hl}${gl ? '-' + gl : ''},${hl};q=0.9\n`
+        });
       });
 
       // Dismiss cookie consent if present (EU/BR)
@@ -644,42 +652,52 @@ function createWindow() {
 
         // If we need more results than ytInitialData provided, scroll and extract from DOM
         if (items.length < maxResults) {
-          console.log('[Scraper] Need more results (' + items.length + '/' + maxResults + '), scrolling...');
+          console.log('[Scraper] Need more results (' + items.length + '/' + maxResults + '), starting deep scan...');
           const knownUrls = new Set(items.map(i => i.url));
-          // Scroll multiple times to trigger YouTube's infinite scroll
-          for (let i = 0; i < 4; i++) {
+          let prevCount = 0;
+          let unchangedCount = 0;
+          let scrolls = 0;
+          
+          while (items.length < maxResults && unchangedCount < 4 && scrolls < 30) {
+            scrolls++;
             await scraperView.webContents.executeJavaScript('window.scrollTo(0, document.documentElement.scrollHeight)');
             await new Promise(r => setTimeout(r, 1500));
-          }
-          // Extract additional channels from DOM
-          const extraItems = await scraperView.webContents.executeJavaScript(`
-            (function(){
-              try {
-                return Array.from(document.querySelectorAll('ytd-channel-renderer')).map(function(el){
-                  var name = (el.querySelector('#channel-title yt-formatted-string') || el.querySelector('#channel-title .yt-formatted-string'))?.textContent?.trim() || '';
-                  if (!name) return null;
-                  var link = el.querySelector('a#main-link, a.channel-link');
-                  var url = link?.href || '';
-                  var handle = el.querySelector('#channel-handle')?.textContent?.trim() || '';
-                  var subs = el.querySelector('#subscribers')?.textContent?.trim() || '0';
-                  var videoCount = el.querySelector('#video-count')?.textContent?.trim() || '0';
-                  var desc = (el.querySelector('#description-text') || el.querySelector('yt-attributed-string'))?.textContent?.trim() || '';
-                  var img = el.querySelector('yt-img-shadow img, #avatar img');
-                  var avatarUrl = img?.src || '';
-                  if (avatarUrl.startsWith('//')) avatarUrl = 'https:' + avatarUrl;
-                  return { name: name, handle: handle, subs: subs, videoCount: videoCount, description: desc, url: url, avatarUrl: avatarUrl };
-                }).filter(function(c){ return c !== null; });
-              } catch(e) { return []; }
-            })()
-          `);
-          // Merge: add only new channels not already in items
-          for (const extra of extraItems) {
-            if (extra.url && !knownUrls.has(extra.url)) {
-              knownUrls.add(extra.url);
-              items.push(extra);
+            
+            const extraItems = await scraperView.webContents.executeJavaScript(`
+              (function(){
+                try {
+                  return Array.from(document.querySelectorAll('ytd-channel-renderer')).map(function(el){
+                    var name = (el.querySelector('#channel-title yt-formatted-string') || el.querySelector('#channel-title .yt-formatted-string'))?.textContent?.trim() || '';
+                    if (!name) return null;
+                    var link = el.querySelector('a#main-link, a.channel-link');
+                    var url = link?.href || '';
+                    var handle = el.querySelector('#channel-handle')?.textContent?.trim() || '';
+                    var subs = el.querySelector('#subscribers')?.textContent?.trim() || '0';
+                    var videoCount = el.querySelector('#video-count')?.textContent?.trim() || '0';
+                    var desc = (el.querySelector('#description-text') || el.querySelector('yt-attributed-string'))?.textContent?.trim() || '';
+                    var img = el.querySelector('yt-img-shadow img, #avatar img');
+                    var avatarUrl = img?.src || '';
+                    if (avatarUrl.startsWith('//')) avatarUrl = 'https:' + avatarUrl;
+                    return { name: name, handle: handle, subs: subs, videoCount: videoCount, description: desc, url: url, avatarUrl: avatarUrl };
+                  }).filter(function(c){ return c !== null; });
+                } catch(e) { return []; }
+              })()
+            `);
+            
+            let addedThisScroll = 0;
+            for (const extra of extraItems) {
+              if (extra.url && !knownUrls.has(extra.url) && items.length < maxResults) {
+                knownUrls.add(extra.url);
+                items.push(extra);
+                addedThisScroll++;
+              }
             }
+            
+            if (addedThisScroll === 0) unchangedCount++;
+            else unchangedCount = 0;
+            
+            console.log(`[Scraper] Deep scan: scroll ${scrolls}, total items: ${items.length}`);
           }
-          console.log('[Scraper] After scroll+DOM merge: total', items.length);
         }
 
         return { success: true, data: items.slice(0, maxResults) };
@@ -704,9 +722,7 @@ function createWindow() {
                 if (!title) continue;
                 const videoId = v.videoId || '';
                 const url = 'https://www.youtube.com/watch?v=' + videoId;
-                const thumbs = v.thumbnail?.thumbnails || [];
-                let thumbnailUrl = thumbs.length > 0 ? thumbs[thumbs.length - 1].url : '';
-                if (thumbnailUrl.startsWith('//')) thumbnailUrl = 'https:' + thumbnailUrl;
+                const thumbnailUrl = videoId ? 'https://i.ytimg.com/vi/' + videoId + '/hqdefault.jpg' : '';
                 const channelName = v.ownerText?.runs?.[0]?.text || '';
                 const channelUrlPath = v.ownerText?.runs?.[0]?.navigationEndpoint
                   ?.browseEndpoint?.canonicalBaseUrl || '';
@@ -739,46 +755,57 @@ function createWindow() {
 
       // If we need more, scroll and extract from DOM
       if (videoItems.length < maxResults) {
-        console.log('[Scraper] Need more videos (' + videoItems.length + '/' + maxResults + '), scrolling...');
+        console.log('[Scraper] Need more videos (' + videoItems.length + '/' + maxResults + '), starting deep scan...');
         const knownUrls = new Set(videoItems.map(i => i.url));
-        for (let i = 0; i < 4; i++) {
+        let unchangedCount = 0;
+        let scrolls = 0;
+        
+        while (videoItems.length < maxResults && unchangedCount < 4 && scrolls < 30) {
+          scrolls++;
           await scraperView.webContents.executeJavaScript('window.scrollTo(0, document.documentElement.scrollHeight)');
           await new Promise(r => setTimeout(r, 1500));
-        }
-        const extraVids = await scraperView.webContents.executeJavaScript(`
-          (function(){
-            try {
-              return Array.from(document.querySelectorAll('ytd-video-renderer')).map(function(el){
-                var titleEl = el.querySelector('a#video-title, #video-title');
-                var title = titleEl?.textContent?.trim() || '';
-                if (!title) return null;
-                var href = titleEl?.getAttribute('href') || '';
-                var url = href.startsWith('http') ? href : 'https://www.youtube.com' + href;
-                var chEl = el.querySelector('#channel-name a');
-                var channelName = chEl?.textContent?.trim() || '';
-                var channelUrl = chEl?.href || '';
-                var img = el.querySelector('#thumbnail img, yt-image img');
-                var thumbnailUrl = img?.src || '';
-                if (thumbnailUrl.startsWith('//')) thumbnailUrl = 'https:' + thumbnailUrl;
-                var metas = el.querySelectorAll('#metadata-line span.inline-metadata-item');
-                var viewCount = metas[0]?.textContent?.trim() || '0';
-                var publishedAt = metas[1]?.textContent?.trim() || '';
-                var durEl = el.querySelector('ytd-thumbnail-overlay-time-status-renderer span#text');
-                var duration = durEl?.textContent?.trim() || '';
-                return { title:title, url:url, thumbnailUrl:thumbnailUrl, channelName:channelName,
-                  channelUrl:channelUrl, channelAvatarUrl:'', viewCount:viewCount,
-                  publishedAt:publishedAt, duration:duration };
-              }).filter(function(v){ return v !== null; });
-            } catch(e) { return []; }
-          })()
-        `);
-        for (const extra of extraVids) {
-          if (extra.url && !knownUrls.has(extra.url)) {
-            knownUrls.add(extra.url);
-            videoItems.push(extra);
+          
+          const extraVids = await scraperView.webContents.executeJavaScript(`
+            (function(){
+              try {
+                return Array.from(document.querySelectorAll('ytd-video-renderer')).map(function(el){
+                  var titleEl = el.querySelector('a#video-title, #video-title');
+                  var title = titleEl?.textContent?.trim() || '';
+                  if (!title) return null;
+                  var href = titleEl?.getAttribute('href') || '';
+                  var url = href.startsWith('http') ? href : 'https://www.youtube.com' + href;
+                  var videoId = href.includes('v=') ? href.split('v=')[1]?.split('&')[0] : '';
+                  var thumbnailUrl = videoId ? 'https://i.ytimg.com/vi/' + videoId + '/hqdefault.jpg' : '';
+                  var chEl = el.querySelector('#channel-name a');
+                  var channelName = chEl?.textContent?.trim() || '';
+                  var channelUrl = chEl?.href || '';
+                  var metas = el.querySelectorAll('#metadata-line span.inline-metadata-item');
+                  var viewCount = metas[0]?.textContent?.trim() || '0';
+                  var publishedAt = metas[1]?.textContent?.trim() || '';
+                  var durEl = el.querySelector('ytd-thumbnail-overlay-time-status-renderer span#text');
+                  var duration = durEl?.textContent?.trim() || '';
+                  return { title:title, url:url, thumbnailUrl:thumbnailUrl, channelName:channelName,
+                    channelUrl:channelUrl, channelAvatarUrl:'', viewCount:viewCount,
+                    publishedAt:publishedAt, duration:duration };
+                }).filter(function(v){ return v !== null; });
+              } catch(e) { return []; }
+            })()
+          `);
+          
+          let addedThisScroll = 0;
+          for (const extra of extraVids) {
+            if (extra.url && !knownUrls.has(extra.url) && videoItems.length < maxResults) {
+              knownUrls.add(extra.url);
+              videoItems.push(extra);
+              addedThisScroll++;
+            }
           }
+          
+          if (addedThisScroll === 0) unchangedCount++;
+          else unchangedCount = 0;
+          
+          console.log(`[Scraper] Deep scan: scroll ${scrolls}, total videos: ${videoItems.length}`);
         }
-        console.log('[Scraper] After scroll+DOM merge: total videos', videoItems.length);
       }
 
       return { success: true, data: videoItems.slice(0, maxResults) };
@@ -786,6 +813,178 @@ function createWindow() {
     } catch (err) {
       console.error('[Scraper] Error:', err);
       return { success: false, error: err.message, data: [] };
+    }
+  });
+
+  ipcMain.handle('espiao-save-report', async (_event, { csvContent, defaultName }) => {
+    try {
+      const { canceled, filePath } = await dialog.showSaveDialog(uiWindow, {
+        title: 'Salvar Relatório',
+        defaultPath: defaultName || 'Relatorio_Espiao.csv',
+        filters: [{ name: 'CSV', extensions: ['csv'] }]
+      });
+
+      if (canceled || !filePath) return { success: false, canceled: true };
+
+      fs.writeFileSync(filePath, csvContent, 'utf8');
+      return { success: true, filePath };
+    } catch (e) {
+      console.error('[Espiao] Save report error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('espiao-get-keywords', async (_event, query) => {
+    try {
+      console.log(`[Scraper] Fetching keywords for: ${query}`);
+      // Base API URL for YouTube autocomplete
+      const buildUrl = (q) => `http://suggestqueries.google.com/complete/search?client=chrome&ds=yt&ie=utf-8&oe=utf-8&q=${encodeURIComponent(q)}`;
+      
+      const fetchJson = async (url) => {
+        try {
+          const res = await fetch(url);
+          const data = await res.json();
+          return data[1] || [];
+        } catch(e) {
+          return [];
+        }
+      };
+
+      const allKeywords = new Set();
+      
+      // 1. Exact query
+      const exactResults = await fetchJson(buildUrl(query));
+      exactResults.forEach(k => allKeywords.add(k));
+
+      // 2. Alphabet variations for deep long-tail discovery
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+      const promises = alphabet.map(letter => fetchJson(buildUrl(`${query} ${letter}`)));
+      const results = await Promise.all(promises);
+      
+      results.forEach(list => list.forEach(k => allKeywords.add(k)));
+
+      const keywords = Array.from(allKeywords).filter(k => k.length > 0);
+      console.log(`[Scraper] Keyword discovery found ${keywords.length} terms`);
+      return { success: true, data: keywords };
+    } catch (e) {
+      console.error('[Espiao] Keyword discovery error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+  let isTrendScanning = false;
+
+  ipcMain.on('stop-trend-scan', () => {
+    isTrendScanning = false;
+  });
+
+  ipcMain.on('start-trend-scan', async (event, filters = {}) => {
+    isTrendScanning = true;
+    const hl = filters.hl || 'pt-BR';
+    const gl = filters.gl || '';
+    
+    try {
+      await scraperView.webContents.session.clearStorageData({ storages: ['cookies'] });
+      
+      const url = `https://www.youtube.com/?hl=${hl}&gl=${gl}`;
+      console.log(`[Scraper] Starting Trend Scan at ${url}`);
+      
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Page load timeout')), 30000);
+        scraperView.webContents.once('did-finish-load', () => { clearTimeout(timeout); resolve(); });
+        scraperView.webContents.loadURL(url, {
+          extraHeaders: `Accept-Language: ${hl}${gl ? '-' + gl : ''},${hl};q=0.9\n`
+        });
+      });
+
+      // Dismiss cookie consent if present
+      try {
+        await scraperView.webContents.executeJavaScript(`
+          (function(){
+            const btn = document.querySelector('button[aria-label*="ccept"], button[aria-label*="ceitar"], form[action*="consent"] button[value="1"]');
+            if(btn) btn.click();
+          })()
+        `);
+        await new Promise(r => setTimeout(r, 1000));
+      } catch(_) {}
+
+      const extractedVideoIds = new Set();
+      
+      while (isTrendScanning) {
+        const rawResult = await scraperView.webContents.executeJavaScript(`
+          (function(){
+            try {
+              const nodes = Array.from(document.querySelectorAll('ytd-rich-grid-media, ytd-video-renderer'));
+              const items = [];
+              for (const node of nodes) {
+                const titleNode = node.querySelector('#video-title');
+                if (!titleNode) continue;
+                
+                const title = titleNode.innerText || titleNode.title || '';
+                const url = titleNode.href || '';
+                if (!title || !url) continue;
+                
+                const channelNode = node.querySelector('#channel-name a, #text-container a');
+                const channelName = channelNode ? channelNode.innerText : '';
+                const channelUrl = channelNode ? channelNode.href : '';
+                
+                let viewCount = '';
+                let publishedAt = '';
+                const metaList = node.querySelectorAll('#metadata-line span.ytd-video-meta-block');
+                if (metaList.length >= 2) {
+                  viewCount = metaList[0].innerText;
+                  publishedAt = metaList[1].innerText;
+                } else if (metaList.length === 1) {
+                  viewCount = metaList[0].innerText;
+                }
+                
+                const durationNode = node.querySelector('ytd-thumbnail-overlay-time-status-renderer span#text, badge-shape.badge-shape-wiz--thumbnail-default');
+                const duration = durationNode ? durationNode.innerText.trim() : '';
+                
+                let videoId = '';
+                try {
+                  const urlObj = new URL(url);
+                  videoId = urlObj.searchParams.get('v');
+                } catch(e) {}
+                
+                const thumbnailUrl = videoId ? 'https://i.ytimg.com/vi/' + videoId + '/hqdefault.jpg' : '';
+
+                items.push({
+                  title: title,
+                  url: url,
+                  channelName: channelName,
+                  channelUrl: channelUrl,
+                  viewCount: viewCount,
+                  publishedAt: publishedAt,
+                  duration: duration,
+                  thumbnailUrl: thumbnailUrl,
+                  videoId: videoId
+                });
+              }
+              return { success: true, items: items };
+            } catch(e) {
+              return { success: false, items: [] };
+            }
+          })()
+        `);
+
+        if (rawResult && rawResult.success && rawResult.items) {
+          const newItems = rawResult.items.filter(item => {
+            if (!item.videoId || extractedVideoIds.has(item.videoId)) return false;
+            extractedVideoIds.add(item.videoId);
+            return true;
+          });
+
+          if (newItems.length > 0) {
+            event.sender.send('trend-chunk', newItems);
+          }
+        }
+
+        if (!isTrendScanning) break;
+        await scraperView.webContents.executeJavaScript('window.scrollBy(0, 1500);');
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    } catch(e) {
+      console.error(`[Scraper] Trend Scan error: ${e.message}`);
     }
   });
   // ─────────────────────────────────────────────────────────────────────────
