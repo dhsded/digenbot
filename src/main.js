@@ -30,19 +30,15 @@ function waitForPort(port, timeout = 60000) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const check = () => {
-      const client = net.createConnection({ port, host: '127.0.0.1' });
-      client.once('connect', () => {
-        client.destroy();
-        resolve();
-      });
-      client.once('error', () => {
-        client.destroy();
-        if (Date.now() - start > timeout) {
-          reject(new Error(`Port ${port} did not open within ${timeout}ms`));
-        } else {
-          setTimeout(check, 500);
-        }
-      });
+      fetch(`http://localhost:${port}`)
+        .then(() => resolve())
+        .catch(() => {
+          if (Date.now() - start > timeout) {
+            reject(new Error(`Port ${port} did not open within ${timeout}ms`));
+          } else {
+            setTimeout(check, 500);
+          }
+        });
     };
     check();
   });
@@ -650,18 +646,21 @@ function createWindow() {
           return { success: false, error: 'Nenhum canal encontrado. (' + (rawResult?.dbg || '?') + ')', data: [] };
         }
 
-        // If we need more results than ytInitialData provided, scroll and extract from DOM
         if (items.length < maxResults) {
           console.log('[Scraper] Need more results (' + items.length + '/' + maxResults + '), starting deep scan...');
+          if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Descendo a página para buscar mais canais (Meta: ${maxResults})...` });
+          
           const knownUrls = new Set(items.map(i => i.url));
           let prevCount = 0;
           let unchangedCount = 0;
           let scrolls = 0;
           
-          while (items.length < maxResults && unchangedCount < 4 && scrolls < 30) {
+          while (items.length < maxResults && unchangedCount < 5 && scrolls < 40) {
             scrolls++;
+            if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Extraindo mais canais... (${items.length}/${maxResults}) - Rolagem ${scrolls}` });
+            
             await scraperView.webContents.executeJavaScript('window.scrollTo(0, document.documentElement.scrollHeight)');
-            await new Promise(r => setTimeout(r, 1500));
+            await new Promise(r => setTimeout(r, 2500));
             
             const extraItems = await scraperView.webContents.executeJavaScript(`
               (function(){
@@ -700,6 +699,7 @@ function createWindow() {
           }
         }
 
+        if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Extração concluída: ${Math.min(items.length, maxResults)} canais encontrados.` });
         return { success: true, data: items.slice(0, maxResults) };
       }
 
@@ -756,14 +756,18 @@ function createWindow() {
       // If we need more, scroll and extract from DOM
       if (videoItems.length < maxResults) {
         console.log('[Scraper] Need more videos (' + videoItems.length + '/' + maxResults + '), starting deep scan...');
+        if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Descendo a página para buscar mais vídeos (Meta: ${maxResults})...` });
+        
         const knownUrls = new Set(videoItems.map(i => i.url));
         let unchangedCount = 0;
         let scrolls = 0;
         
-        while (videoItems.length < maxResults && unchangedCount < 4 && scrolls < 30) {
+        while (videoItems.length < maxResults && unchangedCount < 5 && scrolls < 40) {
           scrolls++;
+          if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Extraindo mais vídeos... (${videoItems.length}/${maxResults}) - Rolagem ${scrolls}` });
+          
           await scraperView.webContents.executeJavaScript('window.scrollTo(0, document.documentElement.scrollHeight)');
-          await new Promise(r => setTimeout(r, 1500));
+          await new Promise(r => setTimeout(r, 2500));
           
           const extraVids = await scraperView.webContents.executeJavaScript(`
             (function(){
@@ -808,6 +812,7 @@ function createWindow() {
         }
       }
 
+      if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Extração concluída: ${Math.min(videoItems.length, maxResults)} vídeos encontrados.` });
       return { success: true, data: videoItems.slice(0, maxResults) };
 
     } catch (err) {
@@ -839,16 +844,6 @@ function createWindow() {
       console.log(`[Scraper] Fetching keywords for: ${query}`);
       // Base API URL for YouTube autocomplete
       const buildUrl = (q) => `http://suggestqueries.google.com/complete/search?client=chrome&ds=yt&ie=utf-8&oe=utf-8&q=${encodeURIComponent(q)}`;
-      
-      const fetchJson = async (url) => {
-        try {
-          const res = await fetch(url);
-          const data = await res.json();
-          return data[1] || [];
-        } catch(e) {
-          return [];
-        }
-      };
 
       const allKeywords = new Set();
       
@@ -873,6 +868,77 @@ function createWindow() {
   });
   let isTrendScanning = false;
 
+  const fetchJson = async (url) => {
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      return data[1] || [];
+    } catch(e) {
+      return [];
+    }
+  };
+
+  // ── ESPIAO METRICS WORKER ───────────────────────────────────────────────
+  global.trendMetricsQueue = [];
+  global.isMetricsWorkerRunning = false;
+
+  const processMetricsQueue = async (event, uiWindow, hl, gl) => {
+    if (global.isMetricsWorkerRunning) return;
+    global.isMetricsWorkerRunning = true;
+
+    while (global.trendMetricsQueue.length > 0 && isTrendScanning) {
+      const kw = global.trendMetricsQueue.shift();
+      
+      const metricMsg = `Deep Scan: "${kw}" (${global.trendMetricsQueue.length} na fila)...`;
+      if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO_METRICS', message: metricMsg });
+      
+      const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(kw)}&sp=CAMSBAgFEAE%253D&hl=${hl}${gl ? '&gl='+gl : ''}`;
+      
+      try {
+        const res = await fetch(ytUrl, { 
+          headers: { 
+            'Accept-Language': `${hl}${gl ? '-' + gl : ''},${hl};q=0.9`,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+          } 
+        });
+        const html = await res.text();
+        const match = html.match(/var ytInitialData = (\{.*?\});/);
+        let items = [];
+        if (match && match[1]) {
+          const data = JSON.parse(match[1]);
+          const contents = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || [];
+          const videoItems = [];
+          for (const section of contents) {
+            if (section.itemSectionRenderer && section.itemSectionRenderer.contents) {
+              for (const item of section.itemSectionRenderer.contents) {
+                if (item.videoRenderer) {
+                  videoItems.push(item.videoRenderer);
+                }
+              }
+            }
+          }
+          
+          const topVideos = videoItems.slice(0, 60);
+          for (const v of topVideos) {
+             const viewCount = v.viewCountText ? v.viewCountText.simpleText || v.viewCountText.runs?.[0]?.text : '';
+             const publishedAt = v.publishedTimeText ? v.publishedTimeText.simpleText || v.publishedTimeText.runs?.[0]?.text : '';
+             if (viewCount && publishedAt) {
+               items.push({ viewCount, publishedAt });
+             }
+          }
+        }
+        event.sender.send('trend-keyword-metric', { keyword: kw, topVideos: items });
+      } catch(e) {
+        event.sender.send('trend-keyword-metric', { keyword: kw, topVideos: [] });
+      }
+      
+      await new Promise(r => setTimeout(r, 600));
+    }
+    global.isMetricsWorkerRunning = false;
+  };
+
+  // ── ESPIAO: TREND SCANS ──────────────────────────────────────────────────
+
   ipcMain.on('stop-trend-scan', () => {
     isTrendScanning = false;
   });
@@ -881,112 +947,173 @@ function createWindow() {
     isTrendScanning = true;
     const hl = filters.hl || 'pt-BR';
     const gl = filters.gl || '';
+    const dateSp = VIDEO_DATE_SP[filters.dateRange] || '';
+    const spParam = dateSp ? `&sp=${dateSp}` : '';
     
-    try {
-      await scraperView.webContents.session.clearStorageData({ storages: ['cookies'] });
-      
-      const url = `https://www.youtube.com/?hl=${hl}&gl=${gl}`;
-      console.log(`[Scraper] Starting Trend Scan at ${url}`);
-      
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Page load timeout')), 30000);
-        scraperView.webContents.once('did-finish-load', () => { clearTimeout(timeout); resolve(); });
-        scraperView.webContents.loadURL(url, {
-          extraHeaders: `Accept-Language: ${hl}${gl ? '-' + gl : ''},${hl};q=0.9\n`
-        });
-      });
-
-      // Dismiss cookie consent if present
-      try {
-        await scraperView.webContents.executeJavaScript(`
-          (function(){
-            const btn = document.querySelector('button[aria-label*="ccept"], button[aria-label*="ceitar"], form[action*="consent"] button[value="1"]');
-            if(btn) btn.click();
-          })()
-        `);
-        await new Promise(r => setTimeout(r, 1000));
-      } catch(_) {}
-
-      const extractedVideoIds = new Set();
-      
-      while (isTrendScanning) {
-        const rawResult = await scraperView.webContents.executeJavaScript(`
-          (function(){
-            try {
-              const nodes = Array.from(document.querySelectorAll('ytd-rich-grid-media, ytd-video-renderer'));
-              const items = [];
-              for (const node of nodes) {
-                const titleNode = node.querySelector('#video-title');
-                if (!titleNode) continue;
-                
-                const title = titleNode.innerText || titleNode.title || '';
-                const url = titleNode.href || '';
-                if (!title || !url) continue;
-                
-                const channelNode = node.querySelector('#channel-name a, #text-container a');
-                const channelName = channelNode ? channelNode.innerText : '';
-                const channelUrl = channelNode ? channelNode.href : '';
-                
-                let viewCount = '';
-                let publishedAt = '';
-                const metaList = node.querySelectorAll('#metadata-line span.ytd-video-meta-block');
-                if (metaList.length >= 2) {
-                  viewCount = metaList[0].innerText;
-                  publishedAt = metaList[1].innerText;
-                } else if (metaList.length === 1) {
-                  viewCount = metaList[0].innerText;
-                }
-                
-                const durationNode = node.querySelector('ytd-thumbnail-overlay-time-status-renderer span#text, badge-shape.badge-shape-wiz--thumbnail-default');
-                const duration = durationNode ? durationNode.innerText.trim() : '';
-                
-                let videoId = '';
-                try {
-                  const urlObj = new URL(url);
-                  videoId = urlObj.searchParams.get('v');
-                } catch(e) {}
-                
-                const thumbnailUrl = videoId ? 'https://i.ytimg.com/vi/' + videoId + '/hqdefault.jpg' : '';
-
-                items.push({
-                  title: title,
-                  url: url,
-                  channelName: channelName,
-                  channelUrl: channelUrl,
-                  viewCount: viewCount,
-                  publishedAt: publishedAt,
-                  duration: duration,
-                  thumbnailUrl: thumbnailUrl,
-                  videoId: videoId
-                });
-              }
-              return { success: true, items: items };
-            } catch(e) {
-              return { success: false, items: [] };
+    // Alphabet Generator (A-Z, AA-ZZ)
+    function* alphabetGenerator() {
+      const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+      let length = 1;
+      while (true) {
+        if (length === 1) {
+          for (const l of letters) yield l;
+        } else if (length === 2) {
+          for (const l1 of letters) {
+            for (const l2 of letters) {
+              yield l1 + l2;
             }
-          })()
-        `);
+          }
+        } else {
+          break; // Stop after 702 combinations
+        }
+        length++;
+      }
+    }
 
-        if (rawResult && rawResult.success && rawResult.items) {
-          const newItems = rawResult.items.filter(item => {
-            if (!item.videoId || extractedVideoIds.has(item.videoId)) return false;
-            extractedVideoIds.add(item.videoId);
-            return true;
-          });
+    const generator = alphabetGenerator();
+    const seenKeywords = new Set();
+    
+    console.log(`[Scraper] Starting Alphabet Trend Scan (hl=${hl}, gl=${gl})`);
+    
+    // Clear cookies for pure regional results
+    try { await scraperView.webContents.session.clearStorageData({ storages: ['cookies'] }); } catch(e) {}
 
-          if (newItems.length > 0) {
-            event.sender.send('trend-chunk', newItems);
+    try {
+      while (isTrendScanning) {
+        const next = generator.next();
+        if (next.done) break;
+        const currentPrefix = next.value;
+        
+        const statusMsg = `Buscando tendências com a letra '${currentPrefix.toUpperCase()}'...`;
+        event.sender.send('trend-status', statusMsg);
+        if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: statusMsg });
+        
+        // 1. Fetch autocomplete suggestions for current prefix
+        const fetchUrl = `https://suggestqueries.google.com/complete/search?client=chrome&ds=yt&q=${encodeURIComponent(currentPrefix)}&hl=${hl}&gl=${gl}&ie=utf-8&oe=utf-8`;
+        const suggestions = await fetchJson(fetchUrl);
+        
+        const newKeywords = [];
+        for (const kw of suggestions) {
+          if (!seenKeywords.has(kw) && kw.length > 0) {
+            seenKeywords.add(kw);
+            newKeywords.push(kw);
           }
         }
 
-        if (!isTrendScanning) break;
-        await scraperView.webContents.executeJavaScript('window.scrollBy(0, 1500);');
-        await new Promise(r => setTimeout(r, 2000));
+        if (newKeywords.length > 0) {
+          // Send keywords to UI immediately so they populate the grid
+          event.sender.send('trend-keyword-found', newKeywords);
+          
+          // Push to background queue and start worker
+          global.trendMetricsQueue.push(...newKeywords);
+          processMetricsQueue(event, uiWindow, hl, gl);
+        }
+      }
+      
+      if (!isTrendScanning) {
+        event.sender.send('trend-status', `Varredura pausada.`);
+        if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: 'Varredura Global pausada.' });
+      } else {
+        event.sender.send('trend-status', `Varredura concluída (Z alcançado).`);
+        if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: 'Varredura Global concluída.' });
       }
     } catch(e) {
       console.error(`[Scraper] Trend Scan error: ${e.message}`);
+      event.sender.send('trend-status', `Erro na varredura: ${e.message}`);
+      if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Erro na varredura: ${e.message}` });
     }
   });
+
+  // ── ESPIAO: SUBNICHE SCAN (OCEANO AZUL) ──────────────────────────────────
+  ipcMain.on('start-subniche-scan', async (event, { query, filters = {} }) => {
+    isTrendScanning = true;
+    const hl = filters.hl || 'pt-BR';
+    const gl = filters.gl || '';
+    
+    
+    event.sender.send('trend-status', `Buscando vídeos de referência para "${query}"...`);
+    if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Buscando vídeos raiz para "${query}"...` });
+    
+    try {
+      // 1. Buscamos vídeos relevantes (This Year, sorted by relevance or view count)
+      const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgQIBRAB&hl=${hl}${gl ? '&gl='+gl : ''}`;
+      const searchRes = await fetch(searchUrl, {
+        headers: { 'Accept-Language': `${hl}${gl ? '-' + gl : ''},${hl};q=0.9`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      });
+      const html = await searchRes.text();
+      const match = html.match(/var ytInitialData = (\{.*?\});/);
+      let videoIds = [];
+      if (match && match[1]) {
+        const data = JSON.parse(match[1]);
+        const contents = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || [];
+        for (const section of contents) {
+          if (section.itemSectionRenderer && section.itemSectionRenderer.contents) {
+            for (const item of section.itemSectionRenderer.contents) {
+              if (item.videoRenderer && item.videoRenderer.videoId) {
+                videoIds.push(item.videoRenderer.videoId);
+              }
+            }
+          }
+        }
+      }
+      
+      const topIds = videoIds.slice(0, 30);
+      event.sender.send('trend-status', `Raspando tags de ${topIds.length} vídeos... (pode demorar 10-15s)`);
+      if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Extraindo tags de ${topIds.length} vídeos...` });
+      
+      const subnichesCount = {};
+      const queryLower = query.toLowerCase();
+      
+      // 2. Acessa a página de cada vídeo em paralelo (batch de 10)
+      const batchSize = 10;
+      for (let i = 0; i < topIds.length; i += batchSize) {
+        if (!isTrendScanning) break;
+        const batch = topIds.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (vid) => {
+          try {
+            const url = `https://www.youtube.com/watch?v=${vid}`;
+            const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': hl } });
+            const vHtml = await res.text();
+            const tagMatch = vHtml.match(/<meta name="keywords" content="(.*?)">/);
+            if (tagMatch && tagMatch[1]) {
+              const tags = tagMatch[1].split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 2);
+              for (const tag of tags) {
+                if (tag === queryLower || tag.includes('youtube') || tag.includes('video')) continue;
+                subnichesCount[tag] = (subnichesCount[tag] || 0) + 1;
+              }
+            }
+          } catch(err) {}
+        }));
+      }
+      
+      if (!isTrendScanning) return;
+      
+      // 3. Ordena os subnichos mais frequentes
+      const sortedSubniches = Object.entries(subnichesCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 50)
+        .map(entry => entry[0]);
+        
+      if (sortedSubniches.length > 0) {
+        // Envia para o UI (O UI já tem o IPC para renderizar)
+        event.sender.send('trend-keyword-found', sortedSubniches);
+        
+        // Empurra pra fila de métricas 30/60/90/365 e inicia
+        global.trendMetricsQueue.push(...sortedSubniches);
+        processMetricsQueue(event, uiWindow, hl, gl);
+        
+        event.sender.send('trend-status', `Oceano Azul encontrado! Explorando ${sortedSubniches.length} subnichos.`);
+        if (uiWindow) uiWindow.webContents.send('ui-status-update', { id: 'ESPIAO', message: `Oceano Azul concluído.` });
+      } else {
+        event.sender.send('trend-status', `Nenhum subnicho relevante encontrado.`);
+      }
+      
+    } catch(e) {
+      console.error(`[Scraper] Subniche Scan error: ${e.message}`);
+      event.sender.send('trend-status', `Erro na varredura de subnichos: ${e.message}`);
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────
 }
 

@@ -4,7 +4,7 @@ import './App.css'
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Mode = 'canais' | 'videos' | 'keywords'
 type ViewMode = 'grid' | 'list'
-type SortKey = 'subs' | 'views' | 'recent' | 'vph'
+type SortKey = 'subs' | 'views' | 'recent' | 'vph' | 'views30' | 'views60' | 'views90' | 'views365'
 type DateRange = 'any' | 'hour' | 'today' | 'week' | 'month' | 'year'
 type VideoDuration = 'any' | 'short' | 'long'
 
@@ -35,11 +35,25 @@ interface Video {
   vph: number
 }
 
+interface TrendKeyword {
+  keyword: string
+  views30: number
+  views60: number
+  views90: number
+  views365: number
+  analyzed: boolean
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmt = (n: number): string => {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1).replace('.0', '') + 'K'
-  return n.toString()
+  const rounded = Math.round(n);
+  if (rounded >= 1_000_000) return (rounded / 1_000_000).toFixed(1).replace('.0', '') + 'M'
+  if (rounded >= 1_000) return (rounded / 1_000).toFixed(1).replace('.0', '') + 'K'
+  return rounded.toString()
+}
+
+const fmtFull = (n: number): string => {
+  return new Intl.NumberFormat('pt-BR').format(Math.round(n))
 }
 
 function parseNumericStr(str: string): number {
@@ -196,13 +210,13 @@ function VideoCard({ v }: { v: Video }) {
           {v.publishedAt && <span>• {v.publishedAt}</span>}
         </div>
       </div>
-      <div className="video-vph">
+      <div className="video-vph" title={`${fmtFull(v.vph)} VPH`}>
         <div className="video-vph-value" style={{ color: v.vph > 1000 ? '#ef4444' : v.vph > 100 ? '#f59e0b' : 'inherit' }}>
-          {fmt(Math.round(v.vph))}
+          {fmt(v.vph)}
         </div>
         <div className="video-vph-label">VPH</div>
       </div>
-      <div className="video-vph">
+      <div className="video-vph" title={`${fmtFull(v.viewsNum)} Visualizações`}>
         <div className="video-vph-value">{fmt(v.viewsNum)}</div>
         <div className="video-vph-label">Views</div>
       </div>
@@ -288,38 +302,58 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('')
   const [statusMsg, setStatusMsg] = useState('')
   const [isScanning, setIsScanning] = useState(false)
+  const [trendKeywords, setTrendKeywords] = useState<TrendKeyword[]>([])
 
   // Radar Stream Listener
   useEffect(() => {
-    if (!window.espiao?.onTrendChunk) return
+    if (!window.espiao?.onTrendKeywordFound) return
 
-    window.espiao.onTrendChunk((items: any[]) => {
-      const parsed: Video[] = items.map((v: any) => {
-        const viewsNum = parseNumericStr(v.viewCount)
-        const hours = parsePublishedTimeToHours(v.publishedAt)
-        const vph = viewsNum / Math.max(hours, 1)
-
-        return {
-          id: `trend-${v.videoId}-${Math.random()}`,
-          title: v.title,
-          channelName: v.channelName,
-          channelUrl: v.channelUrl,
-          channelAvatarUrl: '',
-          viewCount: v.viewCount,
-          viewsNum,
-          publishedAt: v.publishedAt,
-          duration: v.duration,
-          url: v.url,
-          thumbnailUrl: v.thumbnailUrl,
-          vph,
-        }
+    window.espiao.onTrendKeywordFound((kws: string[]) => {
+      setTrendKeywords(prev => {
+        const existing = new Set(prev.map(p => p.keyword))
+        const added = kws
+          .filter(k => {
+            if (existing.has(k)) return false;
+            const firstChar = k.charAt(0).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+            return /^[A-Z]$/.test(firstChar);
+          })
+          .map(k => ({ 
+            keyword: k, views30: 0, views60: 0, views90: 0, views365: 0, analyzed: false 
+          }))
+        return [...prev, ...added]
       })
-      setVideos(prev => [...prev, ...parsed])
       setHasSearched(true)
     })
 
+    window.espiao.onTrendKeywordMetric((data: { keyword: string, topVideos: any[] }) => {
+      let views30 = 0, count30 = 0;
+      let views60 = 0, count60 = 0;
+      let views90 = 0, count90 = 0;
+      let views365 = 0, count365 = 0;
+
+      for (const v of data.topVideos) {
+        const viewsNum = parseNumericStr(v.viewCount)
+        const hours = parsePublishedTimeToHours(v.publishedAt)
+        
+        if (viewsNum > 0) {
+          if (hours <= 720 && count30 < 10) { views30 += viewsNum; count30++; }
+          if (hours <= 1440 && count60 < 20) { views60 += viewsNum; count60++; }
+          if (hours <= 2160 && count90 < 20) { views90 += viewsNum; count90++; }
+          if (hours <= 8760 && count365 < 20) { views365 += viewsNum; count365++; }
+        }
+      }
+
+      setTrendKeywords(prev => prev.map(p => 
+        p.keyword === data.keyword ? { ...p, views30, views60, views90, views365, analyzed: true } : p
+      ))
+    })
+
+    window.espiao.onTrendStatus((status: string) => {
+      setStatusMsg(status)
+    })
+
     return () => {
-      window.espiao?.offTrendChunk?.()
+      window.espiao?.offTrendEvents?.()
     }
   }, [])
 
@@ -490,7 +524,7 @@ export default function App() {
     return 0
   })
 
-  const totalResults = mode === 'canais' ? channels.length : mode === 'videos' ? sortedVideos.length : keywords.length
+  const totalResults = mode === 'canais' ? channels.length : mode === 'videos' ? sortedVideos.length : isScanning || trendKeywords.length > 0 ? trendKeywords.length : keywords.length
 
   return (
     <div className="app">
@@ -571,36 +605,38 @@ export default function App() {
             </div>
 
             {/* Mode cards */}
-            <div>
-              <div className="section-label">O que pesquisar</div>
-              <div className="mode-grid">
-                <button
-                  id="mode-canais"
-                  className={`mode-card ${mode === 'canais' ? 'active' : ''}`}
-                  onClick={() => {
-                    setMode('canais');
-                    if (sortKey !== 'subs') setSortKey('subs');
-                  }}
-                >
-                  <div className="mode-card-icon">📡</div>
-                  <div className="mode-card-title">Canais</div>
-                  <div className="mode-card-desc">Encontra canais do mesmo nicho</div>
-                </button>
-                <button
-                  id="mode-videos"
-                  className={`mode-card ${mode === 'videos' ? 'active' : ''}`}
-                  onClick={() => { 
-                    setMode('videos'); 
-                    setViewMode('list');
-                    if (sortKey === 'subs') setSortKey('vph');
-                  }}
-                >
-                  <div className="mode-card-icon">🎬</div>
-                  <div className="mode-card-title">Vídeos</div>
-                  <div className="mode-card-desc">Encontra vídeos relacionados</div>
-                </button>
+            {mode !== 'keywords' && (
+              <div>
+                <div className="section-label">O que pesquisar</div>
+                <div className="mode-grid">
+                  <button
+                    id="mode-canais"
+                    className={`mode-card ${mode === 'canais' ? 'active' : ''}`}
+                    onClick={() => {
+                      setMode('canais');
+                      if (sortKey !== 'subs') setSortKey('subs');
+                    }}
+                  >
+                    <div className="mode-card-icon">📡</div>
+                    <div className="mode-card-title">Canais</div>
+                    <div className="mode-card-desc">Encontra canais do mesmo nicho</div>
+                  </button>
+                  <button
+                    id="mode-videos"
+                    className={`mode-card ${mode === 'videos' ? 'active' : ''}`}
+                    onClick={() => { 
+                      setMode('videos'); 
+                      setViewMode('list');
+                      if (sortKey === 'subs') setSortKey('vph');
+                    }}
+                  >
+                    <div className="mode-card-icon">🎬</div>
+                    <div className="mode-card-title">Vídeos</div>
+                    <div className="mode-card-desc">Encontra vídeos relacionados</div>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Filters */}
             <div>
@@ -650,22 +686,24 @@ export default function App() {
                   <option value="RU">🇷🇺 Rússia</option>
                 </select>
 
-                <select
-                  id="filter-sort"
-                  className="filter-select"
-                  value={sortKey}
-                  onChange={(e) => setSortKey(e.target.value as SortKey)}
-                >
-                  {mode === 'canais' ? (
-                    <option value="subs">👥 Ordenar por Inscritos</option>
-                  ) : (
-                    <>
-                      <option value="vph">🚀 Ordenar por Viralidade (VPH)</option>
-                      <option value="views">👁️ Ordenar por Views</option>
-                      <option value="recent">🕐 Mais Recentes</option>
-                    </>
-                  )}
-                </select>
+                {mode !== 'keywords' && (
+                  <select
+                    id="filter-sort"
+                    className="filter-select"
+                    value={sortKey}
+                    onChange={(e) => setSortKey(e.target.value as SortKey)}
+                  >
+                    {mode === 'canais' ? (
+                      <option value="subs">👥 Ordenar por Inscritos</option>
+                    ) : (
+                      <>
+                        <option value="vph">🚀 Ordenar por Viralidade (VPH)</option>
+                        <option value="views">👁️ Ordenar por Views</option>
+                        <option value="recent">🕐 Mais Recentes</option>
+                      </>
+                    )}
+                  </select>
+                )}
               </div>
 
               {/* Minimum Subscribers (Channels only) */}
@@ -686,33 +724,35 @@ export default function App() {
             </div>
 
             {/* Date Range Filter */}
-            <div>
-              <div className="section-label">📅 Período de Upload</div>
-              <div className="date-range-grid">
-                {([
-                  { key: 'any', label: 'Qualquer', icon: '∞' },
-                  { key: 'hour', label: 'Última hora', icon: '⏱' },
-                  { key: 'today', label: 'Hoje', icon: '📆' },
-                  { key: 'week', label: 'Esta semana', icon: '📅' },
-                  { key: 'month', label: 'Este mês', icon: '🗓' },
-                  { key: 'year', label: 'Este ano', icon: '📊' },
-                ] as { key: DateRange; label: string; icon: string }[]).map(({ key, label, icon }) => (
-                  <button
-                    key={key}
-                    className={`date-range-btn ${dateRange === key ? 'active' : ''}`}
-                    onClick={() => setDateRange(key)}
-                  >
-                    <span className="date-range-icon">{icon}</span>
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-              {mode === 'canais' && dateRange !== 'any' && (
-                <div className="filter-hint">
-                  ⓘ Filtro de data é aplicado apenas em vídeos
+            {mode !== 'keywords' && (
+              <div>
+                <div className="section-label">📅 Período de Upload</div>
+                <div className="date-range-grid">
+                  {([
+                    { key: 'any', label: 'Qualquer', icon: '∞' },
+                    { key: 'hour', label: 'Última hora', icon: '⏱' },
+                    { key: 'today', label: 'Hoje', icon: '📆' },
+                    { key: 'week', label: 'Esta semana', icon: '📅' },
+                    { key: 'month', label: 'Este mês', icon: '🗓' },
+                    { key: 'year', label: 'Este ano', icon: '📊' },
+                  ] as { key: DateRange; label: string; icon: string }[]).map(({ key, label, icon }) => (
+                    <button
+                      key={key}
+                      className={`date-range-btn ${dateRange === key ? 'active' : ''}`}
+                      onClick={() => setDateRange(key)}
+                    >
+                      <span className="date-range-icon">{icon}</span>
+                      <span>{label}</span>
+                    </button>
+                  ))}
                 </div>
-              )}
-            </div>
+                {mode === 'canais' && dateRange !== 'any' && (
+                  <div className="filter-hint">
+                    ⓘ Filtro de data é aplicado apenas em vídeos
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Duration Filter */}
             {mode === 'videos' && (
@@ -742,51 +782,68 @@ export default function App() {
             )}
 
             {/* Max Results */}
-            <div className="range-group">
-              <div className="range-label-row">
-                <span className="range-label">Máx. resultados</span>
-                <span className="range-value">{maxResults}</span>
+            {mode !== 'keywords' && (
+              <div className="range-group">
+                <div className="range-label-row">
+                  <span className="range-label">Máx. resultados</span>
+                  <span className="range-value">{maxResults}</span>
+                </div>
+                <input
+                  id="filter-max-results"
+                  type="range"
+                  min={5}
+                  max={200}
+                  step={10}
+                  value={maxResults}
+                  onChange={(e) => setMaxResults(Number(e.target.value))}
+                />
               </div>
-              <input
-                id="filter-max-results"
-                type="range"
-                min={5}
-                max={200}
-                step={10}
-                value={maxResults}
-                onChange={(e) => setMaxResults(Number(e.target.value))}
-              />
-            </div>
+            )}
 
             {/* Search Button */}
-            {mode === 'keywords' && !query.trim() ? (
-              <div style={{ display: 'flex', gap: '8px' }}>
+            {mode === 'keywords' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className={`search-btn`}
+                    style={{ flex: 1, background: isScanning ? 'var(--bg-card-hover)' : '' }}
+                    onClick={() => {
+                      if (isScanning) return;
+                      setIsScanning(true);
+                      setTrendKeywords([]);
+                      setSortKey('recent');
+                      window.espiao?.startTrendScan?.({ hl: language, gl: country, dateRange });
+                    }}
+                    disabled={isScanning}
+                  >
+                    🔤 Alfabeto (A-Z)
+                  </button>
+                  <button
+                    className={`search-btn`}
+                    style={{ width: '80px', background: isScanning ? 'var(--red)' : 'var(--bg-card-hover)', color: isScanning ? '#fff' : 'var(--text-muted)' }}
+                    onClick={() => {
+                      if (!isScanning) return;
+                      setIsScanning(false);
+                      window.espiao?.stopTrendScan?.();
+                    }}
+                    disabled={!isScanning}
+                  >
+                    ⏸ Pausar
+                  </button>
+                </div>
                 <button
-                  id="scan-start-btn"
                   className={`search-btn`}
-                  style={{ flex: 1, background: isScanning ? 'var(--bg-card-hover)' : '' }}
+                  style={{ width: '100%', background: isScanning ? 'var(--bg-card-hover)' : 'var(--accent)', opacity: (!query.trim() || isScanning) ? 0.5 : 1 }}
                   onClick={() => {
-                    if (isScanning) return;
+                    if (isScanning || !query.trim()) return;
                     setIsScanning(true);
-                    setVideos([]);
-                    window.espiao?.startTrendScan?.({ hl: language, gl: country });
+                    setTrendKeywords([]);
+                    setSortKey('views30'); // Sort by recent ascensão
+                    window.espiao?.startSubnicheScan?.(query, { hl: language, gl: country, dateRange });
                   }}
-                  disabled={isScanning}
+                  disabled={isScanning || !query.trim()}
                 >
-                  ▶ Varredura Global
-                </button>
-                <button
-                  id="scan-stop-btn"
-                  className={`search-btn`}
-                  style={{ width: '80px', background: isScanning ? 'var(--red)' : 'var(--bg-card-hover)', color: isScanning ? '#fff' : 'var(--text-muted)' }}
-                  onClick={() => {
-                    if (!isScanning) return;
-                    setIsScanning(false);
-                    window.espiao?.stopTrendScan?.();
-                  }}
-                  disabled={!isScanning}
-                >
-                  ⏸ Pausar
+                  🌊 Oceano Azul (Subnichos)
                 </button>
               </div>
             ) : (
@@ -794,9 +851,9 @@ export default function App() {
                 id="search-btn"
                 className={`search-btn ${loading ? 'loading' : ''}`}
                 onClick={handleSearch}
-                disabled={loading || (!query.trim() && mode !== 'keywords')}
+                disabled={loading || !query.trim()}
               >
-                {loading ? '' : `🔎 Espionar ${mode === 'canais' ? 'Canais' : mode === 'videos' ? 'Vídeos' : 'Palavras-Chave'}`}
+                {loading ? '' : `🔎 Espionar ${mode === 'canais' ? 'Canais' : 'Vídeos'}`}
               </button>
             )}
 
@@ -834,8 +891,15 @@ export default function App() {
                 ))}
 
                 {(mode === 'videos' || mode === 'keywords') && [
-                  { k: 'vph' as SortKey, label: '🚀 Viralidade (VPH)' },
-                  { k: 'views' as SortKey, label: '👁️ Views' },
+                  ...(mode === 'keywords' ? [
+                    { k: 'recent' as SortKey, label: '🔠 Letras' },
+                    { k: 'views30' as SortKey, label: '🔥 Ascensão (30d)' },
+                    { k: 'views90' as SortKey, label: '📈 Força (90d)' },
+                    { k: 'views365' as SortKey, label: '👑 Consolidado' }
+                  ] : [
+                    { k: 'vph' as SortKey, label: '🚀 Viralidade (VPH)' },
+                    { k: 'views' as SortKey, label: '👁️ Views' }
+                  ]),
                 ].map(({ k, label }) => (
                   <button
                     key={k}
@@ -845,6 +909,34 @@ export default function App() {
                     {label}
                   </button>
                 ))}
+
+                {(mode === 'canais' || mode === 'videos') && hasSearched && !loading && (
+                  <div className="view-mode-toggles">
+                    <button
+                      className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                      onClick={() => setViewMode('grid')}
+                      title="Visualização em Grade"
+                    >
+                      <span style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px', width: '12px', height: '12px' }}>
+                        <div style={{ background: 'currentColor', borderRadius: '1px' }}></div>
+                        <div style={{ background: 'currentColor', borderRadius: '1px' }}></div>
+                        <div style={{ background: 'currentColor', borderRadius: '1px' }}></div>
+                        <div style={{ background: 'currentColor', borderRadius: '1px' }}></div>
+                      </span>
+                    </button>
+                    <button
+                      className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
+                      onClick={() => setViewMode('list')}
+                      title="Visualização em Lista"
+                    >
+                      <span style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '12px', height: '12px' }}>
+                        <div style={{ background: 'currentColor', height: '3px', borderRadius: '1px' }}></div>
+                        <div style={{ background: 'currentColor', height: '3px', borderRadius: '1px' }}></div>
+                        <div style={{ background: 'currentColor', height: '3px', borderRadius: '1px' }}></div>
+                      </span>
+                    </button>
+                  </div>
+                )}
                 
                 <button
                   className="sort-btn"
@@ -904,7 +996,7 @@ export default function App() {
               ))}
             </div>
           ) : mode === 'keywords' ? (
-              (query.trim() || keywords.length > 0) && !isScanning && videos.length === 0 ? (
+              (query.trim() || keywords.length > 0) && !isScanning && trendKeywords.length === 0 ? (
                 <div className="keywords-grid">
                   {keywords.map((kw, i) => (
                     <div key={i} className="keyword-card">
@@ -921,10 +1013,151 @@ export default function App() {
                   ))}
                 </div>
               ) : (
-                <div className={`results-grid ${viewMode === 'grid' ? 'grid-view' : 'list-view'}`}>
-                  {sortedVideos.map((v) => (
-                    <VideoCard key={v.id} v={v} />
-                  ))}
+                <div className="keywords-grid-container" style={{ position: 'relative' }}>
+                  {(() => {
+                    if (sortKey === 'recent') {
+                      // Group by first letter
+                      const grouped = trendKeywords.reduce((acc, kw) => {
+                        const letter = (kw.keyword.charAt(0) || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                        if (!acc[letter]) acc[letter] = [];
+                        acc[letter].push(kw);
+                        return acc;
+                      }, {} as Record<string, TrendKeyword[]>);
+
+                      const sortedLetters = Object.keys(grouped).sort();
+
+                      return (
+                        <>
+                          {/* Alphabet Navigation Bar */}
+                          {sortedLetters.length > 0 && (
+                            <div style={{
+                              position: 'sticky',
+                              top: '0',
+                              zIndex: 10,
+                              background: 'var(--bg-card)',
+                              padding: '12px 16px',
+                              marginBottom: '24px',
+                              borderRadius: '12px',
+                              border: '1px solid var(--border)',
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: '8px',
+                              boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
+                            }}>
+                              <span style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', marginRight: '8px' }}>
+                                Ir para:
+                              </span>
+                              {sortedLetters.map(l => (
+                                <button
+                                  key={`nav-${l}`}
+                                  onClick={() => {
+                                    const el = document.getElementById(`letter-${l}`);
+                                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                  }}
+                                  style={{
+                                    background: 'var(--bg-main)',
+                                    border: '1px solid var(--border)',
+                                    color: 'var(--text-primary)',
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: 'bold',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseOver={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = '#fff'; }}
+                                  onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg-main)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                                >
+                                  {l}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Letter Sections */}
+                          {sortedLetters.map(letter => (
+                            <div id={`letter-${letter}`} key={letter} className="keyword-group-section" style={{ marginBottom: '24px', width: '100%', scrollMarginTop: '80px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', padding: '0 8px' }}>
+                                <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--accent)', background: 'rgba(59,130,246,0.15)', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
+                                  {letter}
+                                </div>
+                                <div style={{ height: '1px', flex: 1, background: 'var(--border)' }}></div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{grouped[letter].length} termos</div>
+                              </div>
+                              <div className="keywords-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+                                {grouped[letter].sort((a,b) => a.keyword.localeCompare(b.keyword)).map((kw, i) => {
+                                  const isRising = kw.views30 > 0 && kw.views365 > 0 && (kw.views30 > kw.views365 * 0.4);
+                                  const isLetterWinner = kw.analyzed && kw.views30 > 0 && Math.max(...grouped[letter].filter(k => k.analyzed).map(k => k.views30)) === kw.views30;
+                                  return renderKeywordCard(kw, i, isRising, isLetterWinner);
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      );
+                    }
+
+                    // Flat sorted view
+                    return (
+                      <div className="keywords-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+                        {[...trendKeywords].sort((a,b) => {
+                          if (sortKey === 'views30') return b.views30 - a.views30;
+                          if (sortKey === 'views60') return b.views60 - a.views60;
+                          if (sortKey === 'views90') return b.views90 - a.views90;
+                          if (sortKey === 'views365') return b.views365 - a.views365;
+                          return a.keyword.localeCompare(b.keyword);
+                        }).map((kw, i) => {
+                          const isRising = kw.views30 > 0 && kw.views365 > 0 && (kw.views30 > kw.views365 * 0.4);
+                          return renderKeywordCard(kw, i, isRising, false);
+                        })}
+                      </div>
+                    );
+                    
+                    function renderKeywordCard(kw: TrendKeyword, i: number, isRising: boolean, isLetterWinner: boolean) {
+                      return (
+                        <div key={kw.keyword + i} className="keyword-card" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '14px', gap: '10px', height: 'auto', border: isLetterWinner ? '1px solid var(--accent)' : '' }}>
+                          <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className="keyword-icon">{isLetterWinner ? '👑' : '🔑'}</span>
+                              <span className="keyword-text" style={{ fontSize: '14px', fontWeight: 600, color: isLetterWinner ? 'var(--accent)' : '#fff' }}>{kw.keyword}</span>
+                              {isRising && <span style={{ fontSize: '10px', background: 'var(--red)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>ASCENSÃO 🔥</span>}
+                            </div>
+                            <button 
+                              className="keyword-search-btn"
+                              onClick={(e) => { e.stopPropagation(); setQuery(kw.keyword); setMode('videos'); handleSearch(); }}
+                              title="Pesquisar vídeos com este termo"
+                            >
+                              🔎
+                            </button>
+                          </div>
+                          {kw.analyzed ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', width: '100%', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                              <div title={`${fmtFull(kw.views30)} visualizações nos últimos 30 dias`} style={{ fontSize: '11px', color: 'var(--text-secondary)', cursor: 'help' }}>
+                                30d: <span style={{color: 'var(--green)', fontWeight: 700}}>{fmt(kw.views30)}</span>
+                              </div>
+                              <div title={`${fmtFull(kw.views60)} visualizações nos últimos 60 dias`} style={{ fontSize: '11px', color: 'var(--text-secondary)', cursor: 'help' }}>
+                                60d: <span style={{color: '#fff', fontWeight: 600}}>{fmt(kw.views60)}</span>
+                              </div>
+                              <div title={`${fmtFull(kw.views90)} visualizações nos últimos 90 dias`} style={{ fontSize: '11px', color: 'var(--text-secondary)', cursor: 'help' }}>
+                                90d: <span style={{color: '#fff', fontWeight: 600}}>{fmt(kw.views90)}</span>
+                              </div>
+                              <div title={`${fmtFull(kw.views365)} visualizações no último ano`} style={{ fontSize: '11px', color: 'var(--text-secondary)', cursor: 'help' }}>
+                                Ano: <span style={{color: '#fff', fontWeight: 600}}>{fmt(kw.views365)}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', borderTop: '1px solid var(--border)', paddingTop: '8px', width: '100%' }}>
+                              Analisando em 2º plano...
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
               )
           ) : (

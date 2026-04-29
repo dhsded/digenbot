@@ -9,12 +9,22 @@ contextBridge.exposeInMainWorld('espiao', {
     ipcRenderer.invoke('espiao-get-keywords', query),
   startTrendScan: (filters) => 
     ipcRenderer.send('start-trend-scan', filters),
+  startSubnicheScan: (query, filters) =>
+    ipcRenderer.send('start-subniche-scan', { query, filters }),
   stopTrendScan: () => 
     ipcRenderer.send('stop-trend-scan'),
-  onTrendChunk: (callback) => {
-    ipcRenderer.on('trend-chunk', (_event, items) => callback(items));
+  onTrendKeywordFound: (callback) => {
+    ipcRenderer.on('trend-keyword-found', (_event, keywords) => callback(keywords));
   },
-  offTrendChunk: () => {
-    ipcRenderer.removeAllListeners('trend-chunk');
+  onTrendKeywordMetric: (callback) => {
+    ipcRenderer.on('trend-keyword-metric', (_event, data) => callback(data));
+  },
+  onTrendStatus: (callback) => {
+    ipcRenderer.on('trend-status', (_event, status) => callback(status));
+  },
+  offTrendEvents: () => {
+    ipcRenderer.removeAllListeners('trend-keyword-found');
+    ipcRenderer.removeAllListeners('trend-keyword-metric');
+    ipcRenderer.removeAllListeners('trend-status');
   }
 });
