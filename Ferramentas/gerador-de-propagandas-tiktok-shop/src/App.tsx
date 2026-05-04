@@ -354,18 +354,27 @@ Retorne APENAS o array JSON.`,
   const generateProductScript = async () => {
     if (!modelImage || !productImage) return;
     setIsGenerating(true);
-    if ((window as any).digenAPI?.updateLog) {
-      (window as any).digenAPI.updateLog('Iniciando análise de tendências e geração de roteiro via Gemini...');
-    }
+    
+    const updateLog = (msg: string) => {
+        if ((window as any).digenAPI?.updateLog) {
+            (window as any).digenAPI.updateLog(msg);
+        }
+    };
+
+    updateLog('🔍 Buscando chave de API Gemini ativa no Cofre...');
 
     try {
-      const key = await getGeminiKey();
+      let key = await getGeminiKey();
       if (!key) throw new Error("Nenhuma chave Gemini configurada. Acesse Configurações no programa principal.");
-      const ai = new GoogleGenAI({ apiKey: key });
+      
+      updateLog('🔑 Chave encontrada. Preparando imagens para envio...');
       
       const modelBase64 = await fileToBase64(modelImage.file, modelImage.preview);
       const productBase64 = await fileToBase64(productImage.file, productImage.preview);
 
+      updateLog('🧠 Imagens processadas. Solicitando roteiro inteligente ao Gemini (pode levar alguns segundos)...');
+      
+      const ai = new GoogleGenAI({ apiKey: key });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: {
