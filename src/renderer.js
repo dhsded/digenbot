@@ -1,4 +1,4 @@
-// === Theme Logic ===
+﻿// === Theme Logic ===
 let currentTheme = localStorage.getItem('digenTheme') || 'dark';
 
 function applyTheme(theme) {
@@ -1153,3 +1153,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+
