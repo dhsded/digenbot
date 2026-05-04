@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('digenAPI', {
     getTheme: () => ipcRenderer.invoke('get-theme'),
     onThemeChange: (callback) => ipcRenderer.on('theme-changed', (event, theme) => callback(theme)),
     openImageViewer: (src) => ipcRenderer.send('open-image-viewer', src),
-    injectTask: (platform, prompt, imageUrl) => ipcRenderer.send('tool-inject-task', { platform, prompt, imageUrl })
+    injectTask: (platform, prompt, imageUrl) => ipcRenderer.send('tool-inject-task', { platform, prompt, imageUrl }),
+    updateLog: (message) => ipcRenderer.send('tool-update-log', message)
 });
 

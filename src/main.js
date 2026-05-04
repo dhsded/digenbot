@@ -352,6 +352,12 @@ function createWindow() {
     }
   });
 
+  ipcMain.on('tool-update-log', (event, message) => {
+    if (uiWindow) {
+      uiWindow.webContents.send('ui-status-update', { id: 'tool', message: `[Ferramenta] ${message}` });
+    }
+  });
+
   ipcMain.on('queue-task', (event, taskData) => {
     console.log(`Main: Routing task to ${taskData.platform.toUpperCase()} view:`, taskData.prompt);
     const routeTask = () => {

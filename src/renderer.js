@@ -796,12 +796,21 @@ function addTaskToUI(task) {
     const div = document.createElement('div');
     div.id = task.id;
     div.className = 'task-item';
+    
+    let imageHtml = '';
+    if (task.characterParam && task.characterParam.preview) {
+        imageHtml = `<img src="${task.characterParam.preview}" style="width: 48px; height: 48px; object-fit: cover; border-radius: 8px; flex-shrink: 0; border: 1px solid var(--surface-border);">`;
+    }
+
     div.innerHTML = `
         <div class="task-header">
             <span>ID: ${task.id.slice(-6)}</span>
             <span class="status-badge queued" id="badge_${task.id}">Aguardando</span>
         </div>
-        <div class="task-prompt">${task.prompt}</div>
+        <div style="display: flex; gap: 10px; align-items: flex-start; margin-top: 8px;">
+            ${imageHtml}
+            <div class="task-prompt" style="flex: 1; margin: 0;">${task.prompt}</div>
+        </div>
         <div class="task-message" id="msg_${task.id}" style="font-size: 11px; color: #aaa; margin-top: 4px;">Na fila...</div>
     `;
     list.insertBefore(div, list.firstChild);
@@ -1101,8 +1110,16 @@ if (window.api && window.api.onToolQueueTask) {
         }
 
         // Switch tab based on the selected platform to show progress (optional, matches standard queue behavior)
-        const tabBtn = document.getElementById(`card-${data.platform}`);
-        if (tabBtn) tabBtn.click();
+        const platformCap = data.platform.charAt(0).toUpperCase() + data.platform.slice(1);
+        const tabBtn = document.getElementById(`card${platformCap}`);
+        if (tabBtn) {
+            tabBtn.click();
+            
+            // Also explicitly switch the view to 'panel' so the central panel is brought to the front
+            // The card click does window.api.switchTab(platform), but we need to ensure the tool view is hidden.
+            const tabGeradoresBtn = document.getElementById('tabGeradores');
+            if (tabGeradoresBtn) tabGeradoresBtn.click();
+        }
     });
 }
 

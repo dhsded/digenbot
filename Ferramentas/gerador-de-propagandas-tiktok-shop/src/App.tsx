@@ -71,26 +71,55 @@ const THEMES = [
 ];
 
 
+
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+};
+
 function InjectionDropdown({ scenes, images, modelImage, productImage }: any) {
+
   const [isOpen, setIsOpen] = useState(false);
   
   if (!scenes || scenes.length === 0) return null;
 
-  const handleInject = (platform: string) => {
+  const handleInject = async (platform: string) => {
+    setIsOpen(false);
     if ((window as any).digenAPI?.injectTask) {
-       scenes.forEach((scene: any) => {
-           const src = (images.find((img: any) => img.name === scene.imageName) || 
-                       (modelImage?.name === scene.imageName ? modelImage : productImage))?.preview;
+       if ((window as any).digenAPI?.updateLog) {
+           (window as any).digenAPI.updateLog(`Preparando sequência de ${scenes.length} tarefas para o Painel Central...`);
+       }
+       for (let i = 0; i < scenes.length; i++) {
+           const scene = scenes[i];
+           const imgObj = (images.find((img: any) => img.name === scene.imageName) || 
+                       (modelImage?.name === scene.imageName ? modelImage : productImage));
            const prompt = platform === 'flow' ? scene.veoPrompt : scene.digenPrompt;
-           if(src) {
-               (window as any).digenAPI.injectTask(platform, prompt, src);
+           
+           if(imgObj && imgObj.file) {
+               try {
+                   if ((window as any).digenAPI?.updateLog) {
+                       (window as any).digenAPI.updateLog(`Convertendo imagem ${i+1}/${scenes.length} para injeção...`);
+                   }
+                   const base64Src = await fileToBase64(imgObj.file);
+                   (window as any).digenAPI.injectTask(platform, prompt, base64Src);
+               } catch (e) {
+                   console.error("Erro ao converter arquivo para base64", e);
+               }
+           } else if (imgObj && imgObj.preview) {
+               // Fallback just in case it's already a data url (not a blob) or we don't have the file
+               (window as any).digenAPI.injectTask(platform, prompt, imgObj.preview);
            }
-       });
-       alert('Sequência de ' + scenes.length + ' cenas adicionada à fila do Painel Central!');
+       }
+       if ((window as any).digenAPI?.updateLog) {
+           (window as any).digenAPI.updateLog(`✅ Sequência de ${scenes.length} tarefas injetada na plataforma ${platform.toUpperCase()} com sucesso!`);
+       }
     } else {
        alert('API do Gerador DIGEN não encontrada.');
     }
-    setIsOpen(false);
   };
 
   return (
@@ -324,6 +353,9 @@ Retorne APENAS o array JSON.`,
   const generateProductScript = async () => {
     if (!modelImage || !productImage) return;
     setIsGenerating(true);
+    if ((window as any).digenAPI?.updateLog) {
+      (window as any).digenAPI.updateLog('Iniciando análise de tendências e geração de roteiro via Gemini...');
+    }
 
     try {
       const key = await getGeminiKey();
@@ -411,6 +443,9 @@ Retorne em estrutura JSON:
   const generateScript = async () => {
     if (images.length === 0) return;
     setIsGenerating(true);
+    if ((window as any).digenAPI?.updateLog) {
+      (window as any).digenAPI.updateLog('Iniciando análise de tendências e geração de roteiro via Gemini...');
+    }
 
     try {
       const key = await getGeminiKey();
