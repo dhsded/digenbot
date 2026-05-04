@@ -293,7 +293,9 @@ function createWindow() {
     const footerHeight = footerVisible ? 28 : 0;
     const navHeight = 0; // No browser controls for Studio Tools
     
-    if (toolView.webContents.getURL() !== url) {
+    const currentUrl = toolView.webContents.getURL();
+    // Use loose matching to ignore trailing slashes
+    if (!currentUrl.startsWith(url)) {
         toolView.webContents.loadURL(url);
     }
     uiWindow.setBrowserView(toolView);
