@@ -345,6 +345,13 @@ function createWindow() {
     }
   });
 
+  ipcMain.on('tool-inject-task', (event, taskData) => {
+    console.log(`Main: Received tool-inject-task for ${taskData.platform}`);
+    if (uiWindow) {
+      uiWindow.webContents.send('tool-queue-task', taskData);
+    }
+  });
+
   ipcMain.on('queue-task', (event, taskData) => {
     console.log(`Main: Routing task to ${taskData.platform.toUpperCase()} view:`, taskData.prompt);
     const routeTask = () => {

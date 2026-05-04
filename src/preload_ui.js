@@ -14,5 +14,6 @@ contextBridge.exposeInMainWorld('api', {
     onStatusUpdate: (callback) => ipcRenderer.on('ui-status-update', (event, data) => callback(data)),
     broadcastTheme: (theme) => ipcRenderer.send('set-theme', theme),
     onOpenImageViewer: (callback) => ipcRenderer.on('open-image-viewer', (event, src) => callback(src)),
-    closeImageViewer: () => ipcRenderer.send('close-image-viewer')
+    closeImageViewer: () => ipcRenderer.send('close-image-viewer'),
+    onToolQueueTask: (callback) => ipcRenderer.on('tool-queue-task', (event, data) => callback(data))
 });

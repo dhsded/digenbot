@@ -1071,6 +1071,41 @@ if (window.api && window.api.onOpenImageViewer) {
     });
 }
 
+if (window.api && window.api.onToolQueueTask) {
+    window.api.onToolQueueTask((data) => {
+        // Find existing task counter to avoid collisions (approximate by timestamp if global is not accessible)
+        const taskId = `task_${Date.now()}_tool_${Math.floor(Math.random() * 1000)}`;
+        
+        const taskData = {
+            id: taskId,
+            prompt: data.prompt || '',
+            type: 'txt2img',
+            platform: data.platform || 'digen',
+            status: 'queued',
+            characterParam: data.imageUrl ? { preview: data.imageUrl, imageBase64: data.imageUrl } : null,
+            digenConfig: {}
+        };
+
+        if (data.platform === 'meta') {
+            taskData.metaConfig = {};
+        } else if (data.platform === 'flow') {
+            taskData.flowConfig = {};
+        }
+
+        if (typeof addTaskToUI === 'function') {
+            addTaskToUI(taskData);
+        }
+        
+        if (window.api && window.api.queueTask) {
+            window.api.queueTask(taskData);
+        }
+
+        // Switch tab based on the selected platform to show progress (optional, matches standard queue behavior)
+        const tabBtn = document.getElementById(`card-${data.platform}`);
+        if (tabBtn) tabBtn.click();
+    });
+}
+
 // --- Vault UI Controls ---
 document.addEventListener('DOMContentLoaded', () => {
     const grid = document.getElementById('characterGrid');
