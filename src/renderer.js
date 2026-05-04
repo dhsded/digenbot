@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
             currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
             localStorage.setItem('digenTheme', currentTheme);
             applyTheme(currentTheme);
+            if (window.api && window.api.broadcastTheme) {
+                window.api.broadcastTheme(currentTheme);
+            }
         });
     }
 
@@ -235,7 +238,7 @@ async function loadStudioTools() {
             const card = document.createElement('div');
             card.className = 'generator-card';
             card.innerHTML = `
-                <div class="card-icon">🛠️</div>
+                <div class="card-icon">${tool.icon || '🛠️'}</div>
                 <div class="card-title">${tool.name || tool.id}</div>
                 <div class="card-desc">${tool.description || ''}</div>
             `;
@@ -487,11 +490,35 @@ if (batchInput) {
                 imageBase64: base64
             });
             
+            const container = document.createElement('div');
+            container.style.position = 'relative';
+            container.style.display = 'inline-block';
+            
             const img = document.createElement('img');
             img.src = base64;
             img.className = 'batch-thumbnail';
             img.title = file.name;
-            previewGrid.appendChild(img);
+            
+            const btn = document.createElement('button');
+            btn.innerHTML = '🔍';
+            btn.style.position = 'absolute';
+            btn.style.top = '4px';
+            btn.style.right = '4px';
+            btn.style.background = 'rgba(0,0,0,0.6)';
+            btn.style.color = 'white';
+            btn.style.border = 'none';
+            btn.style.borderRadius = '50%';
+            btn.style.width = '20px';
+            btn.style.height = '20px';
+            btn.style.fontSize = '9px';
+            btn.style.cursor = 'pointer';
+            btn.style.zIndex = '10';
+            btn.title = 'Dar Zoom';
+            btn.onclick = () => { if(window.openGlobalImageViewer) window.openGlobalImageViewer(base64); };
+            
+            container.appendChild(img);
+            container.appendChild(btn);
+            previewGrid.appendChild(container);
         }
     });
 }
@@ -856,9 +883,12 @@ function loadCharacters() {
         const div = document.createElement('div');
         div.className = 'char-card';
         div.innerHTML = `
-            <img src="${mainImage}" alt="${char.name}">
+            <div style="position: relative;">
+                <img src="${mainImage}" alt="${char.name}">
+                <button onclick="if(window.openGlobalImageViewer) window.openGlobalImageViewer('${mainImage}')" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 10px; cursor: pointer; z-index: 10;" title="Dar Zoom">🔍</button>
+            </div>
             <div class="char-name" title="${char.name}">${char.name}</div>
-            <div style="margin-top: 4px; line-height: 1.2;">${badgesHtml}</div>
+            <div class="badges-container" style="margin-top: 4px; line-height: 1.2;">${badgesHtml}</div>
             <button class="btn-delete-char" onclick="deleteCharacter('${char.id}')">Excluir Base</button>
         `;
         grid.appendChild(div);
@@ -947,4 +977,134 @@ window.deleteCharacter = function(id) {
 document.addEventListener('DOMContentLoaded', () => {
     loadCharacters();
     initDigenReactivity();
+});
+
+// --- GLOBAL IMAGE VIEWER LOGIC ---
+(function() {
+    const viewer = document.getElementById('globalImageViewer');
+    const viewerImage = document.getElementById('viewerImage');
+    const zoomInBtn = document.getElementById('viewerZoomInBtn');
+    const zoomOutBtn = document.getElementById('viewerZoomOutBtn');
+    const resetBtn = document.getElementById('viewerResetBtn');
+    const closeBtn = document.getElementById('viewerCloseBtn');
+
+    if (!viewer || !viewerImage) return;
+
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX, startY;
+
+    function updateTransform() {
+        viewerImage.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    }
+
+    function resetZoom() {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        updateTransform();
+    }
+
+    window.openGlobalImageViewer = function(src) {
+        viewerImage.src = src;
+        resetZoom();
+        viewer.style.display = 'flex';
+    };
+
+    closeBtn.addEventListener('click', () => {
+        viewer.style.display = 'none';
+        viewerImage.src = '';
+        if (window.api && window.api.closeImageViewer) window.api.closeImageViewer();
+    });
+
+    zoomInBtn.addEventListener('click', () => {
+        scale = Math.min(scale + 0.5, 5);
+        updateTransform();
+    });
+
+    zoomOutBtn.addEventListener('click', () => {
+        scale = Math.max(scale - 0.5, 0.5);
+        updateTransform();
+    });
+
+    resetBtn.addEventListener('click', resetZoom);
+
+    // Mouse wheel zoom
+    viewer.addEventListener('wheel', (e) => {
+        if (e.deltaY < 0) {
+            scale = Math.min(scale + 0.2, 5);
+        } else {
+            scale = Math.max(scale - 0.2, 0.5);
+        }
+        updateTransform();
+    });
+
+    // Panning (Drag)
+    viewerImage.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isDragging = true;
+        startX = e.clientX - translateX;
+        startY = e.clientY - translateY;
+        viewerImage.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        translateX = e.clientX - startX;
+        translateY = e.clientY - startY;
+        updateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+        viewerImage.style.cursor = 'grab';
+    });
+})();
+
+if (window.api && window.api.onOpenImageViewer) {
+    window.api.onOpenImageViewer((src) => {
+        if (window.openGlobalImageViewer) {
+            window.openGlobalImageViewer(src);
+        }
+    });
+}
+
+// --- Vault UI Controls ---
+document.addEventListener('DOMContentLoaded', () => {
+    const grid = document.getElementById('characterGrid');
+    if (!grid) return;
+
+    // Load preferences
+    const savedSize = localStorage.getItem('digenVaultSize') || 'md';
+    const savedView = localStorage.getItem('digenVaultView') || 'grid';
+
+    // Apply
+    grid.className = `character-grid size-${savedSize} view-${savedView}`;
+
+    // Set radios
+    const sizeRadio = document.querySelector(`input[name="vaultSize"][value="${savedSize}"]`);
+    const viewRadio = document.querySelector(`input[name="vaultView"][value="${savedView}"]`);
+    if (sizeRadio) sizeRadio.checked = true;
+    if (viewRadio) viewRadio.checked = true;
+
+    // Listeners
+    document.querySelectorAll('input[name="vaultSize"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const val = e.target.value;
+            localStorage.setItem('digenVaultSize', val);
+            grid.classList.remove('size-sm', 'size-md', 'size-lg');
+            grid.classList.add(`size-${val}`);
+        });
+    });
+
+    document.querySelectorAll('input[name="vaultView"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const val = e.target.value;
+            localStorage.setItem('digenVaultView', val);
+            grid.classList.remove('view-grid', 'view-list');
+            grid.classList.add(`view-${val}`);
+        });
+    });
 });

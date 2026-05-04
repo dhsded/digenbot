@@ -504,20 +504,64 @@ function createWindow() {
           return { url }; // Already running
       }
       
-      const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], { cwd: toolDir });
+      const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      const child = spawn(npmCmd, ['run', 'dev'], {
+          cwd: toolDir,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { ...process.env, FORCE_COLOR: '0' }
+      });
       runningTools[toolId] = { process: child, url };
-      
+
+      child.stdout.on('data', (d) => console.log(`[Tool:${toolId}]`, d.toString().trim()));
+      child.stderr.on('data', (d) => console.error(`[Tool:${toolId}:err]`, d.toString().trim()));
       child.on('exit', () => {
           console.log(`[DEBUG] Tool ${toolId} exited`);
           delete runningTools[toolId];
       });
-      
-      // Wait a bit for the server to start
-      await new Promise(r => setTimeout(r, 2000));
+
+      // Aguarda o servidor estar realmente pronto (até 60s)
+      try {
+          await waitForPort(port, 60000);
+          console.log(`[Tool:${toolId}] Servidor pronto na porta ${port}`);
+      } catch (err) {
+          console.error(`[Tool:${toolId}] Timeout aguardando porta ${port}:`, err.message);
+          return { error: `Servidor não iniciou na porta ${port} no tempo limite.` };
+      }
+
       return { url };
   });
 
   // Tools data IPC handlers
+  let activeBrowserView = null;
+  ipcMain.on('open-image-viewer', (event, src) => {
+      if (uiWindow) {
+          activeBrowserView = uiWindow.getBrowserView();
+          uiWindow.setBrowserView(null);
+          uiWindow.webContents.send('open-image-viewer', src);
+      }
+  });
+
+  ipcMain.on('close-image-viewer', (event) => {
+      if (uiWindow && activeBrowserView) {
+          uiWindow.setBrowserView(activeBrowserView);
+      }
+  });
+  
+  ipcMain.on('set-theme', (event, theme) => {
+      if (toolView) toolView.webContents.send('theme-changed', theme);
+      if (espiaoView) espiaoView.webContents.send('theme-changed', theme);
+      if (editorView) editorView.webContents.send('theme-changed', theme);
+  });
+
+  ipcMain.handle('get-theme', async () => {
+      try {
+          const result = await uiWindow.webContents.executeJavaScript('localStorage.getItem("digenTheme")');
+          return result || 'dark';
+      } catch (e) {
+          return 'dark';
+      }
+  });
+
   ipcMain.handle('get-vault', async () => {
       try {
           const result = await uiWindow.webContents.executeJavaScript('localStorage.getItem("digenCharacters")');
@@ -535,6 +579,27 @@ function createWindow() {
           return [];
       }
   });
+
+  // ── Global Gemini Key Cycling ─────────────────────────────────────────────
+  // Single global counter shared across ALL tools — guarantees true round-robin
+  // regardless of which tool requests a key.
+  let geminiKeyIndex = 0;
+
+  ipcMain.handle('get-next-api-key', async () => {
+      try {
+          const raw = await uiWindow.webContents.executeJavaScript('localStorage.getItem("digenApiKeys")');
+          const keys = raw ? JSON.parse(raw) : [];
+          if (keys.length === 0) return null;
+          const key = keys[geminiKeyIndex % keys.length];
+          geminiKeyIndex++;
+          console.log(`[KeyCycle] Fornecendo chave #${geminiKeyIndex} (índice ${(geminiKeyIndex - 1) % keys.length})`);
+          return key;
+      } catch (e) {
+          console.error('[KeyCycle] Erro ao buscar chave:', e);
+          return null;
+      }
+  });
+  // ─────────────────────────────────────────────────────────────────────────
 
   // ── YouTube Scraper ────────────────────────────────────────────────────────
   // Date filter sp params for video search (protobuf-encoded YouTube filters)

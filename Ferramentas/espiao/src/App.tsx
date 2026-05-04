@@ -132,6 +132,16 @@ declare global {
         csvContent: string,
         defaultName: string
       ) => Promise<{ success: boolean; filePath?: string; error?: string }>
+      getKeywords: (
+        query: string
+      ) => Promise<{ success: boolean; data: unknown[]; error?: string }>
+      startTrendScan: (filters: Record<string, unknown>) => void
+      stopTrendScan: () => void
+      startSubnicheScan: (query: string, filters: Record<string, unknown>) => void
+      onTrendKeywordFound: (callback: (keywords: string[]) => void) => void
+      onTrendKeywordMetric: (callback: (data: { keyword: string; topVideos: unknown[] }) => void) => void
+      onTrendStatus: (callback: (status: string) => void) => void
+      offTrendEvents: () => void
     }
   }
 }
