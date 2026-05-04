@@ -70,6 +70,50 @@ const THEMES = [
   'Essenciais Minimalistas'
 ];
 
+
+function InjectionDropdown({ scenes, images, modelImage, productImage }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  if (!scenes || scenes.length === 0) return null;
+
+  const handleInject = (platform: string) => {
+    if ((window as any).digenAPI?.injectTask) {
+       scenes.forEach((scene: any) => {
+           const src = (images.find((img: any) => img.name === scene.imageName) || 
+                       (modelImage?.name === scene.imageName ? modelImage : productImage))?.preview;
+           const prompt = platform === 'flow' ? scene.veoPrompt : scene.digenPrompt;
+           if(src) {
+               (window as any).digenAPI.injectTask(platform, prompt, src);
+           }
+       });
+       alert('Sequência de ' + scenes.length + ' cenas adicionada à fila do Painel Central!');
+    } else {
+       alert('API do Gerador DIGEN não encontrada.');
+    }
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative z-50">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-orange-500/20 transition-all"
+      >
+        🚀 Injetar Sequência ▾
+      </button>
+      
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          <button onClick={() => handleInject('digen')} className="w-full text-left px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors">🧠 Digen</button>
+          <button onClick={() => handleInject('flow')} className="w-full text-left px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors">🌊 Flow (Google VEO)</button>
+          <button onClick={() => handleInject('meta')} className="w-full text-left px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors">🌐 Meta AI</button>
+          <button onClick={() => handleInject('grok')} className="w-full text-left px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors">🌌 Grok (x.ai)</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabMode>('collection');
   
@@ -1000,13 +1044,16 @@ Retorne em estrutura JSON:
                       <h3 className="text-xs uppercase tracking-[0.3em] text-orange-500 font-bold mb-2">Roteiro Gerado</h3>
                       <h2 className="text-3xl font-bold font-display">{generatedScript.campaignTitle}</h2>
                     </div>
-                    <button 
-                      onClick={copyToClipboard}
-                      className="flex items-center gap-2 px-6 py-3 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl hover:bg-white hover:text-black transition-all"
-                    >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      <span className="text-xs font-bold uppercase tracking-widest">{copied ? 'Copiado' : 'Copiar JSON'}</span>
-                    </button>
+                    <div className="flex items-center gap-4">
+                      <InjectionDropdown scenes={generatedScript.scenes} images={images} modelImage={modelImage} productImage={productImage} />
+                      <button 
+                        onClick={copyToClipboard}
+                        className="flex items-center gap-2 px-6 py-3 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl hover:bg-white hover:text-black transition-all"
+                      >
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        <span className="text-xs font-bold uppercase tracking-widest">{copied ? 'Copiado' : 'Copiar JSON'}</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-6">
@@ -1031,11 +1078,7 @@ Retorne em estrutura JSON:
                                   alt={scene.imageName}
                                   className="w-full h-full object-contain p-2"
                                 />
-                                <div className="absolute top-2 left-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button onClick={(e) => { e.stopPropagation(); const src = (images.find(img => img.name === scene.imageName) || (modelImage?.name === scene.imageName ? modelImage : productImage))?.preview; if(src && (window as any).digenAPI?.injectTask) (window as any).digenAPI.injectTask('digen', scene.prompt, src); }} className="px-1.5 py-0.5 bg-black/60 rounded hover:bg-[#3b82f6] text-[10px] font-bold text-white transition-colors" title="Injetar no Digen">D</button>
-                                  <button onClick={(e) => { e.stopPropagation(); const src = (images.find(img => img.name === scene.imageName) || (modelImage?.name === scene.imageName ? modelImage : productImage))?.preview; if(src && (window as any).digenAPI?.injectTask) (window as any).digenAPI.injectTask('flow', scene.prompt, src); }} className="px-1.5 py-0.5 bg-black/60 rounded hover:bg-[#3b82f6] text-[10px] font-bold text-white transition-colors" title="Injetar no Flow">F</button>
-                                  <button onClick={(e) => { e.stopPropagation(); const src = (images.find(img => img.name === scene.imageName) || (modelImage?.name === scene.imageName ? modelImage : productImage))?.preview; if(src && (window as any).digenAPI?.injectTask) (window as any).digenAPI.injectTask('meta', scene.prompt, src); }} className="px-1.5 py-0.5 bg-black/60 rounded hover:bg-[#3b82f6] text-[10px] font-bold text-white transition-colors" title="Injetar no Meta">M</button>
-                                </div>
+                                
                                 <button 
                                   onClick={() => {
                                     const src = (images.find(img => img.name === scene.imageName) || (modelImage?.name === scene.imageName ? modelImage : productImage))?.preview;
