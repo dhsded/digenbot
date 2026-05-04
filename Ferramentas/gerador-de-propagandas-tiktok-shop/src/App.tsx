@@ -93,6 +93,7 @@ function InjectionDropdown({ scenes, images, modelImage, productImage }: any) {
        if ((window as any).digenAPI?.updateLog) {
            (window as any).digenAPI.updateLog(`Preparando sequência de ${scenes.length} tarefas para o Painel Central...`);
        }
+       let injectedCount = 0;
        for (let i = 0; i < scenes.length; i++) {
            const scene = scenes[i];
            const imgObj = (images.find((img: any) => img.name === scene.imageName) || 
@@ -1234,3 +1235,4 @@ Retorne em estrutura JSON:
     </div>
   );
 }
+

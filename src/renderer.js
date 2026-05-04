@@ -1109,17 +1109,10 @@ if (window.api && window.api.onToolQueueTask) {
             window.api.queueTask(taskData);
         }
 
-        // Switch tab based on the selected platform to show progress (optional, matches standard queue behavior)
-        const platformCap = data.platform.charAt(0).toUpperCase() + data.platform.slice(1);
-        const tabBtn = document.getElementById(`card${platformCap}`);
-        if (tabBtn) {
-            tabBtn.click();
-            
-            // Also explicitly switch the view to 'panel' so the central panel is brought to the front
-            // The card click does window.api.switchTab(platform), but we need to ensure the tool view is hidden.
-            const tabGeradoresBtn = document.getElementById('tabGeradores');
-            if (tabGeradoresBtn) tabGeradoresBtn.click();
-        }
+        // Explicitly switch the view to 'panel' so the central panel is brought to the front
+        // This ensures the tool view is hidden and the user sees the execution queue.
+        const tabPanelBtn = document.getElementById('tabPanel');
+        if (tabPanelBtn) tabPanelBtn.click();
     });
 }
 
