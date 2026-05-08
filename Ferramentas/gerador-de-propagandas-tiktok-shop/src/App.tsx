@@ -81,7 +81,7 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-function InjectionDropdown({ scenes, images, modelImage, productImage }: any) {
+function InjectionDropdown({ scenes, images, modelImage, productImage, aspectRatio }: any) {
 
   const [isOpen, setIsOpen] = useState(false);
   
@@ -106,13 +106,13 @@ function InjectionDropdown({ scenes, images, modelImage, productImage }: any) {
                        (window as any).digenAPI.updateLog(`Convertendo imagem ${i+1}/${scenes.length} para injeção...`);
                    }
                    const base64Src = await fileToBase64(imgObj.file);
-                   (window as any).digenAPI.injectTask(platform, prompt, base64Src);
+                   (window as any).digenAPI.injectTask(platform, prompt, base64Src, aspectRatio);
                } catch (e) {
                    console.error("Erro ao converter arquivo para base64", e);
                }
            } else if (imgObj && imgObj.preview) {
                // Fallback just in case it's already a data url (not a blob) or we don't have the file
-               (window as any).digenAPI.injectTask(platform, prompt, imgObj.preview);
+               (window as any).digenAPI.injectTask(platform, prompt, imgObj.preview, aspectRatio);
            }
        }
        if ((window as any).digenAPI?.updateLog) {
@@ -165,6 +165,7 @@ export default function App() {
   // Shared
   const [observations, setObservations] = useState('');
   const [duration, setDuration] = useState(DURATIONS[0]);
+  const [aspectRatio, setAspectRatio] = useState('9:16');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedScript, setGeneratedScript] = useState<ScriptResponse | null>(null);
   const [copied, setCopied] = useState(false);
@@ -753,10 +754,10 @@ Retorne em estrutura JSON:
                 <section className="space-y-6">
                   <h2 className="text-xl font-medium flex items-center gap-2">
                     <span className="bg-black/5 dark:bg-white/5 w-8 h-8 rounded-full flex items-center justify-center text-sm border border-black/10 dark:border-white/10">2</span>
-                    Configuração
+                    Configuração de Saída
                   </h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-3">
                       <label className="text-xs uppercase tracking-widest text-gray-900 dark:text-gray-500 dark:text-white/40 font-bold flex items-center gap-2">
                         <Sparkles className="w-3 h-3" />
@@ -786,16 +787,27 @@ Retorne em estrutura JSON:
                         <Settings2 className="w-3 h-3" />
                         Duração da Cena
                       </label>
-                      <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl border border-black/10 dark:border-white/10">
+                      <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl border border-black/10 dark:border-white/10 h-[52px]">
                         {DURATIONS.map(d => (
                           <button
                             key={d}
                             onClick={() => setDuration(d)}
-                            className={`flex-1 py-3 text-sm rounded-xl transition-all ${duration === d ? 'bg-black/10 dark:bg-white/10 text-gray-900 dark:text-white shadow-lg' : 'text-gray-900 dark:text-gray-500 dark:text-white/40 hover:text-gray-900 dark:text-gray-600 dark:text-white/60'}`}
+                            className={`flex-1 py-2 text-sm rounded-xl transition-all ${duration === d ? 'bg-black/10 dark:bg-white/10 text-gray-900 dark:text-white shadow-lg' : 'text-gray-900 dark:text-gray-500 dark:text-white/40 hover:text-gray-900 dark:text-gray-600 dark:text-white/60'}`}
                           >
                             {d}
                           </button>
                         ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-xs uppercase tracking-widest text-gray-900 dark:text-gray-500 dark:text-white/40 font-bold flex items-center gap-2">
+                        <Settings2 className="w-3 h-3" />
+                        Proporção da Imagem
+                      </label>
+                      <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl border border-black/10 dark:border-white/10 h-[52px]">
+                        <button onClick={() => setAspectRatio('16:9')} className={`flex-1 py-2 text-sm rounded-xl transition-all ${aspectRatio === '16:9' ? 'bg-black/10 dark:bg-white/10 text-gray-900 dark:text-white shadow-lg' : 'text-gray-900 dark:text-gray-500 dark:text-white/40 hover:text-gray-900 dark:text-gray-600 dark:text-white/60'}`}>16:9</button>
+                        <button onClick={() => setAspectRatio('9:16')} className={`flex-1 py-2 text-sm rounded-xl transition-all ${aspectRatio === '9:16' ? 'bg-black/10 dark:bg-white/10 text-gray-900 dark:text-white shadow-lg' : 'text-gray-900 dark:text-gray-500 dark:text-white/40 hover:text-gray-900 dark:text-gray-600 dark:text-white/60'}`}>9:16</button>
                       </div>
                     </div>
                   </div>
@@ -995,10 +1007,10 @@ Retorne em estrutura JSON:
                 <section className="space-y-6">
                   <h2 className="text-xl font-medium flex items-center gap-2">
                     <span className="bg-black/5 dark:bg-white/5 w-8 h-8 rounded-full flex items-center justify-center text-sm border border-black/10 dark:border-white/10">2</span>
-                    Configuração
+                    Configuração de Saída
                   </h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-3">
                       <label className="text-xs uppercase tracking-widest text-gray-900 dark:text-gray-500 dark:text-white/40 font-bold flex items-center gap-2">
                         <FileJson className="w-3 h-3" />
@@ -1021,16 +1033,27 @@ Retorne em estrutura JSON:
                         <Settings2 className="w-3 h-3" />
                         Duração da Cena
                       </label>
-                      <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl border border-black/10 dark:border-white/10">
+                      <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl border border-black/10 dark:border-white/10 h-12">
                         {DURATIONS.map(d => (
                           <button
                             key={d}
                             onClick={() => setDuration(d)}
-                            className={`flex-1 py-2 text-sm rounded-xl transition-all ${duration === d ? 'bg-black/10 dark:bg-white/10 text-gray-900 dark:text-white shadow-lg' : 'text-gray-900 dark:text-gray-500 dark:text-white/40 hover:text-gray-900 dark:text-gray-600 dark:text-white/60'}`}
+                            className={`flex-1 py-1 text-sm rounded-xl transition-all ${duration === d ? 'bg-black/10 dark:bg-white/10 text-gray-900 dark:text-white shadow-lg' : 'text-gray-900 dark:text-gray-500 dark:text-white/40 hover:text-gray-900 dark:text-gray-600 dark:text-white/60'}`}
                           >
                             {d}
                           </button>
                         ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-xs uppercase tracking-widest text-gray-900 dark:text-gray-500 dark:text-white/40 font-bold flex items-center gap-2">
+                        <Settings2 className="w-3 h-3" />
+                        Proporção da Imagem
+                      </label>
+                      <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl border border-black/10 dark:border-white/10 h-12">
+                        <button onClick={() => setAspectRatio('16:9')} className={`flex-1 py-1 text-sm rounded-xl transition-all ${aspectRatio === '16:9' ? 'bg-black/10 dark:bg-white/10 text-gray-900 dark:text-white shadow-lg' : 'text-gray-900 dark:text-gray-500 dark:text-white/40 hover:text-gray-900 dark:text-gray-600 dark:text-white/60'}`}>16:9</button>
+                        <button onClick={() => setAspectRatio('9:16')} className={`flex-1 py-1 text-sm rounded-xl transition-all ${aspectRatio === '9:16' ? 'bg-black/10 dark:bg-white/10 text-gray-900 dark:text-white shadow-lg' : 'text-gray-900 dark:text-gray-500 dark:text-white/40 hover:text-gray-900 dark:text-gray-600 dark:text-white/60'}`}>9:16</button>
                       </div>
                     </div>
                   </div>
@@ -1090,7 +1113,7 @@ Retorne em estrutura JSON:
                       <h2 className="text-3xl font-bold font-display">{generatedScript.campaignTitle}</h2>
                     </div>
                     <div className="flex items-center gap-4">
-                      <InjectionDropdown scenes={generatedScript.scenes} images={images} modelImage={modelImage} productImage={productImage} />
+                      <InjectionDropdown scenes={generatedScript.scenes} images={images} modelImage={modelImage} productImage={productImage} aspectRatio={aspectRatio} />
                       <button 
                         onClick={copyToClipboard}
                         className="flex items-center gap-2 px-6 py-3 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl hover:bg-white hover:text-black transition-all"

@@ -9,6 +9,52 @@ declare global {
 }
 
 export default function App() {
+  const [aspectRatio, setAspectRatio] = useState("16:9");
+  
+  function InjectionDropdown({ scenes, scriptImages, aspectRatio }: any) {
+    const [isOpen, setIsOpen] = useState(false);
+    if (!scenes || scenes.length === 0) return null;
+
+    const handleInject = async (platform: string) => {
+      setIsOpen(false);
+      if ((window as any).digenAPI?.injectTask) {
+         if ((window as any).digenAPI?.updateLog) {
+             (window as any).digenAPI.updateLog(`Preparando sequência de ${scenes.length} tarefas para o Painel Central...`);
+         }
+         for (let i = 0; i < scenes.length; i++) {
+             const scene = scenes[i];
+             const imgUrl = scriptImages && scriptImages.length > 0 ? scriptImages[0] : null; 
+             const prompt = platform === 'flow' ? scene.videoPrompt : scene.imagePrompt;
+             
+             (window as any).digenAPI.injectTask(platform, prompt, imgUrl, aspectRatio);
+         }
+         if ((window as any).digenAPI?.updateLog) {
+             (window as any).digenAPI.updateLog(`✅ Sequência de ${scenes.length} tarefas injetada na plataforma ${platform.toUpperCase()} com sucesso!`);
+         }
+      } else {
+         alert('API do Gerador DIGEN não encontrada.');
+      }
+    };
+
+    return (
+      <div className="relative z-50">
+        <button 
+          onClick={() => setIsOpen(!isOpen)}
+          className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-cyan-500 text-white rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+        >
+          🚀 Injetar Sequência ▾
+        </button>
+        {isOpen && (
+          <div className="absolute right-0 top-full mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+            <button onClick={() => handleInject('digen')} className="w-full text-left px-4 py-3 text-xs font-bold text-white hover:bg-slate-800">🧠 Digen</button>
+            <button onClick={() => handleInject('flow')} className="w-full text-left px-4 py-3 text-xs font-bold text-white hover:bg-slate-800">🌊 Flow (Google VEO)</button>
+            <button onClick={() => handleInject('meta')} className="w-full text-left px-4 py-3 text-xs font-bold text-white hover:bg-slate-800">🌐 Meta AI</button>
+            <button onClick={() => handleInject('grok')} className="w-full text-left px-4 py-3 text-xs font-bold text-white hover:bg-slate-800">🌌 Grok (x.ai)</button>
+          </div>
+        )}
+      </div>
+    );
+  }
   const [activeTab, setActiveTab] = useState<'script' | 'character' | 'camera'>('script');
 
   // API Keys State (Global)
@@ -523,6 +569,35 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+
+                <div className="space-y-2 col-span-2">
+                  <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
+                    <Camera className="w-4 h-4 text-indigo-400" />
+                    Proporção da Imagem
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setAspectRatio('16:9')}
+                      className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all border ${
+                        aspectRatio === '16:9' 
+                          ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 border-indigo-400' 
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
+                      }`}
+                    >
+                      16:9 (Paisagem)
+                    </button>
+                    <button
+                      onClick={() => setAspectRatio('9:16')}
+                      className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all border ${
+                        aspectRatio === '9:16' 
+                          ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 border-indigo-400' 
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
+                      }`}
+                    >
+                      9:16 (Vertical)
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Reference Characters */}
@@ -890,6 +965,7 @@ export default function App() {
                     >
                       <Copy className="w-4 h-4" /> Extrair Tudo
                     </button>
+                    <InjectionDropdown scenes={generatedData.scenes} scriptImages={scriptImages} aspectRatio={aspectRatio} />
                   </div>
                 </div>
 

@@ -1,4 +1,4 @@
-﻿// === Theme Logic ===
+// === Theme Logic ===
 let currentTheme = localStorage.getItem('digenTheme') || 'dark';
 
 function applyTheme(theme) {
@@ -796,20 +796,30 @@ function addTaskToUI(task) {
     const div = document.createElement('div');
     div.id = task.id;
     div.className = 'task-item';
+    div.dataset.platform = task.platform || '';
+    div.dataset.aspectRatio = task.aspectRatio || '';
     
     let imageHtml = '';
     if (task.characterParam && task.characterParam.preview) {
-        imageHtml = `<img src="${task.characterParam.preview}" style="width: 48px; height: 48px; object-fit: cover; border-radius: 8px; flex-shrink: 0; border: 1px solid var(--surface-border);">`;
+        imageHtml = `<img src="${task.characterParam.preview}" style="width: 60px; height: 60px; object-fit: cover; aspect-ratio: 1/1; border-radius: 8px; flex-shrink: 0; border: 1px solid var(--surface-border);">`;
     }
+
+    let platformName = 'Desconhecido';
+    if (task.platform === 'digen') platformName = 'Digen';
+    if (task.platform === 'flow') platformName = 'Flow';
+    if (task.platform === 'meta') platformName = 'Meta AI';
+    if (task.platform === 'grok') platformName = 'Grok';
+
+    let ratioBadge = task.aspectRatio ? `<span style="background: #2563eb; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-left: 6px;">${task.aspectRatio}</span>` : '';
 
     div.innerHTML = `
         <div class="task-header">
-            <span>ID: ${task.id.slice(-6)}</span>
+            <span>ID: ${task.id.slice(-6)} <span style="color: var(--primary); font-weight: bold; margin-left: 8px;">[${platformName}]</span>${ratioBadge}</span>
             <span class="status-badge queued" id="badge_${task.id}">Aguardando</span>
         </div>
         <div style="display: flex; gap: 10px; align-items: flex-start; margin-top: 8px;">
             ${imageHtml}
-            <div class="task-prompt" style="flex: 1; margin: 0;">${task.prompt}</div>
+            <div class="task-prompt" style="flex: 1; margin: 0; max-height: 60px; overflow-y: auto; font-size: 13px;">${task.prompt}</div>
         </div>
         <div class="task-message" id="msg_${task.id}" style="font-size: 11px; color: #aaa; margin-top: 4px;">Na fila...</div>
     `;
@@ -821,9 +831,23 @@ window.api.onStatusUpdate((update) => {
     const item = document.getElementById(update.id);
     const globalFooterLog = document.getElementById('globalFooterLog');
 
+    let platformPrefix = '';
+    let ratioInfo = '';
+    if (item) {
+        const p = item.dataset.platform;
+        if (p === 'digen') platformPrefix = '[DIGEN] ';
+        else if (p === 'flow') platformPrefix = '[FLOW] ';
+        else if (p === 'meta') platformPrefix = '[META] ';
+        else if (p === 'grok') platformPrefix = '[GROK] ';
+
+        if (item.dataset.aspectRatio) {
+            ratioInfo = `(${item.dataset.aspectRatio}) `;
+        }
+    }
+
     if (update.message) {
         if (globalFooterLog) {
-            globalFooterLog.innerText = `[${update.id.slice(-6)}] ${update.message}`;
+            globalFooterLog.innerText = `${platformPrefix}${ratioInfo}[${update.id.slice(-6)}] ${update.message}`;
         }
     }
 
@@ -1090,6 +1114,7 @@ if (window.api && window.api.onToolQueueTask) {
             prompt: data.prompt || '',
             type: 'txt2img',
             platform: data.platform || 'digen',
+            aspectRatio: data.aspectRatio || '16:9',
             status: 'queued',
             characterParam: data.imageUrl ? { preview: data.imageUrl, imageBase64: data.imageUrl } : null,
             digenConfig: {}
