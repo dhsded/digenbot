@@ -69,7 +69,7 @@ const getSidebarWidth = () => {
 function updateBrowserControls(tabId) {
     const controls = document.getElementById('browserControls');
     if (controls) {
-        const isExternal = ['digen', 'flow', 'meta', 'grok'].includes(tabId);
+        const isExternal = ['digen', 'flow', 'meta', 'grok', 'gemini'].includes(tabId);
         if (isExternal) {
             controls.style.display = 'flex';
             controls.style.left = getSidebarWidth() + 'px';
@@ -85,22 +85,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnForward = document.getElementById('btnBrowserForward');
     const btnReload = document.getElementById('btnBrowserReload');
     const btnHome = document.getElementById('btnBrowserHome');
+    const btnDumpDom = document.getElementById('btnDumpDom');
 
     if (btnBack) btnBack.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('back'); });
     if (btnForward) btnForward.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('forward'); });
     if (btnReload) btnReload.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('reload'); });
     if (btnHome) btnHome.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('home'); });
+    if (btnDumpDom) btnDumpDom.addEventListener('click', () => { if (window.api && window.api.browserCommand) window.api.browserCommand('dump-dom'); });
 });
 
 let taskCounter = 0;
 // === Tab Navigation ===
 const tabPanelBtn = document.getElementById('tabPanel');
-const tabGeradoresBtn = document.getElementById('tabGeradores');
 const tabCharactersBtn = document.getElementById('tabCharacters');
 const tabVideoEditorBtn = document.getElementById('tabVideoEditor');
 const panelArea = document.getElementById('panelArea');
 const characterArea = document.getElementById('characterArea');
-const geradoresArea = document.getElementById('geradoresArea');
 
 const cardDigen = document.getElementById('cardDigen');
 const cardFlow = document.getElementById('cardFlow');
@@ -113,7 +113,6 @@ const settingsArea = document.getElementById('settingsArea');
 
 function resetTabs() {
     if (tabPanelBtn) tabPanelBtn.classList.remove('active');
-    if (tabGeradoresBtn) tabGeradoresBtn.classList.remove('active');
     if (tabCharactersBtn) tabCharactersBtn.classList.remove('active');
     if (tabVideoEditorBtn) tabVideoEditorBtn.classList.remove('active');
     if (tabStudioBtn) tabStudioBtn.classList.remove('active');
@@ -122,7 +121,6 @@ function resetTabs() {
     
     if (panelArea) panelArea.classList.add('hidden');
     if (characterArea) characterArea.classList.add('hidden');
-    if (geradoresArea) geradoresArea.classList.add('hidden');
     if (studioArea) studioArea.classList.add('hidden');
     if (settingsArea) settingsArea.classList.add('hidden');
 }
@@ -137,20 +135,9 @@ if (tabPanelBtn) {
     });
 }
 
-if (tabGeradoresBtn) {
-    tabGeradoresBtn.addEventListener('click', () => {
-        resetTabs();
-        tabGeradoresBtn.classList.add('active');
-        geradoresArea.classList.remove('hidden');
-        updateBrowserControls('panel');
-        window.api.switchTab('panel', getSidebarWidth());
-    });
-}
-
 if (cardDigen) {
     cardDigen.addEventListener('click', () => {
         resetTabs();
-        if (tabGeradoresBtn) tabGeradoresBtn.classList.add('active');
         updateBrowserControls('digen');
         window.api.switchTab('digen', getSidebarWidth());
     });
@@ -159,7 +146,6 @@ if (cardDigen) {
 if (cardFlow) {
     cardFlow.addEventListener('click', () => {
         resetTabs();
-        if (tabGeradoresBtn) tabGeradoresBtn.classList.add('active');
         updateBrowserControls('flow');
         window.api.switchTab('flow', getSidebarWidth());
     });
@@ -168,7 +154,6 @@ if (cardFlow) {
 if (cardMeta) {
     cardMeta.addEventListener('click', () => {
         resetTabs();
-        if (tabGeradoresBtn) tabGeradoresBtn.classList.add('active');
         updateBrowserControls('meta');
         window.api.switchTab('meta', getSidebarWidth());
     });
@@ -200,6 +185,15 @@ if (tabEspiaoBtn) {
         tabEspiaoBtn.classList.add('active');
         updateBrowserControls('espiao');
         window.api.switchTab('espiao', getSidebarWidth());
+    });
+}
+
+const btnOpenGeminiLogin = document.getElementById('btnOpenGeminiLogin');
+if (btnOpenGeminiLogin) {
+    btnOpenGeminiLogin.addEventListener('click', () => {
+        resetTabs();
+        updateBrowserControls('gemini');
+        window.api.switchTab('gemini', getSidebarWidth());
     });
 }
 
@@ -323,6 +317,99 @@ if (saveSettingsBtn) {
 }
 
 document.addEventListener('DOMContentLoaded', updateApiKeysDisplay);
+
+// === Storyboard Storage Settings ===
+async function initStorageSettings() {
+    // Carregar path
+    if (window.api?.getStoryboardPath) {
+        const p = await window.api.getStoryboardPath();
+        const el = document.getElementById('storyboardPathDisplay');
+        if (el) el.textContent = p;
+    }
+
+    // Carregar configurações salvas
+    if (window.api?.loadAppSettings) {
+        const s = await window.api.loadAppSettings();
+        const toggle = document.getElementById('storyboardAutoCleanupToggle');
+        const periodRow = document.getElementById('cleanupPeriodRow');
+        if (toggle && s.storyboardAutoCleanup) {
+            toggle.checked = true;
+            if (periodRow) periodRow.style.display = 'flex';
+        }
+        if (s.storyboardCleanupDays) {
+            const radio = document.querySelector(`input[name="cleanupDays"][value="${s.storyboardCleanupDays}"]`);
+            if (radio) radio.checked = true;
+        }
+    }
+
+    // Toggle: mostrar/ocultar período
+    const toggle = document.getElementById('storyboardAutoCleanupToggle');
+    const periodRow = document.getElementById('cleanupPeriodRow');
+    if (toggle && periodRow) {
+        toggle.addEventListener('change', () => {
+            periodRow.style.display = toggle.checked ? 'flex' : 'none';
+        });
+    }
+
+    // Abrir pasta de storyboard
+    const openFolderBtn = document.getElementById('openStoryboardFolderBtn');
+    if (openFolderBtn) {
+        openFolderBtn.addEventListener('click', () => {
+            if (window.api?.openStoryboardFolder) {
+                window.api.openStoryboardFolder();
+            }
+        });
+    }
+
+    // Salvar configurações de armazenamento
+    const saveStorageBtn = document.getElementById('saveStorageSettingsBtn');
+    const statusMsg = document.getElementById('storageStatusMsg');
+    if (saveStorageBtn) {
+        saveStorageBtn.addEventListener('click', async () => {
+            const isAutoCleanup = document.getElementById('storyboardAutoCleanupToggle')?.checked || false;
+            const daysEl = document.querySelector('input[name="cleanupDays"]:checked');
+            const days = daysEl ? parseInt(daysEl.value) : 15;
+            if (window.api?.saveAppSettings) {
+                await window.api.saveAppSettings({ storyboardAutoCleanup: isAutoCleanup, storyboardCleanupDays: days });
+                if (statusMsg) {
+                    statusMsg.textContent = isAutoCleanup
+                        ? `✅ Limpeza automática ativada — arquivos com mais de ${days} dias serão removidos automaticamente.`
+                        : '✅ Configurações salvas. Limpeza automática desativada.';
+                    setTimeout(() => { statusMsg.textContent = ''; }, 4000);
+                }
+            }
+        });
+    }
+
+    // Limpar agora
+    const cleanupNowBtn = document.getElementById('cleanupNowBtn');
+    if (cleanupNowBtn) {
+        cleanupNowBtn.addEventListener('click', async () => {
+            const daysEl = document.querySelector('input[name="cleanupDays"]:checked');
+            const days = daysEl ? parseInt(daysEl.value) : 15;
+            if (!confirm(`Remover todos os arquivos do Storyboard com mais de ${days} dias?`)) return;
+            cleanupNowBtn.textContent = '⏳ Limpando...';
+            cleanupNowBtn.disabled = true;
+            const result = await window.api.cleanupStoryboard(days);
+            cleanupNowBtn.textContent = '🗑️ Limpar Agora';
+            cleanupNowBtn.disabled = false;
+            if (statusMsg) {
+                statusMsg.textContent = result.error
+                    ? `❌ Erro: ${result.error}`
+                    : `✅ Limpeza concluída — ${result.deleted} arquivo(s) removido(s).`;
+                setTimeout(() => { statusMsg.textContent = ''; }, 4000);
+            }
+        });
+    }
+}
+
+// Inicializa quando a aba de configurações é aberta
+if (typeof tabSettingsBtn !== 'undefined' && tabSettingsBtn) {
+    tabSettingsBtn.addEventListener('click', () => {
+        setTimeout(initStorageSettings, 100);
+    });
+}
+document.addEventListener('DOMContentLoaded', initStorageSettings);
 
 
 // === Digen Conditional Architecture ===

@@ -15,5 +15,13 @@ contextBridge.exposeInMainWorld('api', {
     broadcastTheme: (theme) => ipcRenderer.send('set-theme', theme),
     onOpenImageViewer: (callback) => ipcRenderer.on('open-image-viewer', (event, src) => callback(src)),
     closeImageViewer: () => ipcRenderer.send('close-image-viewer'),
-    onToolQueueTask: (callback) => ipcRenderer.on('tool-queue-task', (event, data) => callback(data))
+    onToolQueueTask: (callback) => ipcRenderer.on('tool-queue-task', (event, data) => callback(data)),
+    showEngineTab: (engine) => ipcRenderer.send('show-engine-tab', engine),
+    onEngineActive: (callback) => ipcRenderer.on('engine-active', (event, data) => callback(data)),
+    // Storyboard Storage
+    getStoryboardPath: () => ipcRenderer.invoke('get-storyboard-path'),
+    openStoryboardFolder: () => ipcRenderer.send('open-storyboard-folder'),
+    cleanupStoryboard: (days) => ipcRenderer.invoke('cleanup-storyboard', days),
+    saveAppSettings: (s) => ipcRenderer.invoke('save-app-settings', s),
+    loadAppSettings: () => ipcRenderer.invoke('load-app-settings'),
 });

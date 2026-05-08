@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { useState, useRef, ChangeEvent, useEffect } from "react";
-import { Copy, Sparkles, Wand2, BookOpen, Clock, Clapperboard, Image as ImageIcon, Video, ChevronRight, Users, UserCircle, Upload, X, Camera, Type as TypeIcon, Key, Package } from "lucide-react";
+import { Copy, Sparkles, Wand2, BookOpen, Clock, Clapperboard, Image as ImageIcon, Video, ChevronRight, Users, UserCircle, Upload, X, Camera, Type as TypeIcon, Key, Package, LayoutGrid, List } from "lucide-react";
 
 declare global {
   interface Window {
@@ -87,7 +87,12 @@ export default function App() {
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedData, setGeneratedData] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'grid-full' | 'list'>('grid-full');
+  const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [error, setError] = useState("");
+  // Storyboard Flow Pipeline state
+  const [sceneImages, setSceneImages] = useState<Record<string, string>>({});  // sceneId -> local file URL
+  const [sceneImageStatus, setSceneImageStatus] = useState<Record<string, 'pending'|'loading'|'ready'|'error'>>({});
   const scriptFileInputRef = useRef<HTMLInputElement>(null);
 
   // Character Creator State
@@ -351,7 +356,10 @@ export default function App() {
       });
 
       if (response.text) {
-        setGeneratedData(JSON.parse(response.text));
+        const parsed = JSON.parse(response.text);
+        setGeneratedData(parsed);
+        // Dispara o pipeline do Flow em segundo plano para cada cena
+        startStoryboardPipeline(parsed.scenes, aspectRatio);
       }
     } catch (err: any) {
       console.error(err);
@@ -359,6 +367,59 @@ export default function App() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // ── Storyboard Flow Pipeline ──────────────────────────────────────────────
+  const startStoryboardPipeline = (scenes: any[], ratio: string) => {
+    if (!(window as any).digenAPI?.requestStoryboardImage) return;
+
+    // Resetar estados de imagem
+    const initialStatus: Record<string, 'pending'|'loading'|'error'|'ready'> = {};
+    scenes.forEach((_: any, idx: number) => { initialStatus[`scene_${idx}`] = 'loading'; });
+    setSceneImages({});
+    setSceneImageStatus(initialStatus);
+
+    // Remover listener anterior para evitar duplicatas
+    if ((window as any).digenAPI?.removeStoryboardListener) {
+      (window as any).digenAPI.removeStoryboardListener();
+    }
+
+    // Registrar listener para receber imagens salvas
+    (window as any).digenAPI.onStoryboardImageReady((data: { taskId: string; sceneId: string; url?: string; error?: boolean }) => {
+      const key = data.sceneId || data.taskId;
+      if (data.error) {
+        // Flow falhou — ativar fallback visual (Pollinations)
+        setSceneImageStatus(prev => ({ ...prev, [key]: 'error' }));
+      } else if (data.url) {
+        setSceneImages(prev => ({ ...prev, [key]: data.url! }));
+        setSceneImageStatus(prev => ({ ...prev, [key]: 'ready' }));
+      }
+    });
+
+    // Enviar cada cena para o Flow com um pequeno delay para não sobrecarregar
+    scenes.forEach((scene: any, idx: number) => {
+      const sceneId = `scene_${idx}`;
+      // Adiciona instrução de proporção ao prompt para o Nano Banana
+      const ratioInstruction = ratio === '9:16'
+        ? ' Generate in portrait 9:16 vertical format.'
+        : ' Generate in landscape 16:9 widescreen format.';
+      const enhancedPrompt = scene.imagePrompt + ratioInstruction;
+
+      setTimeout(() => {
+        if ((window as any).digenAPI?.requestStoryboardImage) {
+          (window as any).digenAPI.requestStoryboardImage({
+            id: sceneId,
+            platform: 'flow',
+            prompt: enhancedPrompt,
+            flowConfig: {
+              sceneId,
+              prompt: enhancedPrompt,
+              ratio
+            }
+          });
+        }
+      }, idx * 500); // 500ms entre cada envio para evitar spam
+    });
   };
 
   const handleGenerateCameras = async () => {
@@ -553,12 +614,12 @@ export default function App() {
                     <Video className="w-4 h-4 text-indigo-400" />
                     I.A. de Vídeo
                   </label>
-                  <div className="flex gap-2">
-                    {['VEO3', 'DIGEN'].map((ai) => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {['VEO3', 'DIGEN', 'META', 'GROK'].map((ai) => (
                       <button
                         key={ai}
                         onClick={() => setVideoAI(ai)}
-                        className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all border ${
+                        className={`py-3 rounded-xl text-sm font-bold transition-all border ${
                           videoAI === ai 
                             ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 border-cyan-400' 
                             : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
@@ -967,97 +1028,280 @@ export default function App() {
                     </button>
                     <InjectionDropdown scenes={generatedData.scenes} scriptImages={scriptImages} aspectRatio={aspectRatio} />
                   </div>
+                  
+                  {/* View Mode Toggle */}
+                  <div className="flex justify-center mt-8">
+                    <div className="flex bg-slate-900 rounded-2xl p-1 border border-slate-800 shadow-inner gap-1">
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${viewMode === 'grid' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
+                      >
+                        <LayoutGrid className="w-4 h-4" /> Só Imagens
+                      </button>
+                      <button
+                        onClick={() => setViewMode('grid-full')}
+                        className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${viewMode === 'grid-full' ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/25' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
+                      >
+                        <ImageIcon className="w-4 h-4" /> Imagens + Prompts
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${viewMode === 'list' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}`}
+                      >
+                        <List className="w-4 h-4" /> Só Prompts
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Full Story Text */}
-                <div className="bg-slate-900 rounded-3xl p-8 shadow-xl border border-slate-800 mb-12">
-                  <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
-                    <BookOpen className="w-6 h-6 text-indigo-400" /> História Completa
-                  </h3>
-                  <textarea
-                    value={generatedData.fullStoryText}
-                    onChange={(e) => handleEditMain('fullStoryText', e.target.value)}
-                    className="w-full bg-transparent text-slate-300 leading-relaxed text-lg border-none focus:ring-0 focus:outline-none resize-y min-h-[200px]"
-                  />
-                </div>
-
-                <div className="space-y-12">
-                  {generatedData.scenes.map((scene: any, index: number) => (
-                    <div key={index} className="bg-slate-900 rounded-3xl p-8 shadow-xl border border-slate-800 relative overflow-hidden">
-                      {/* Scene Header */}
-                      <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-800">
-                        <div className="w-12 h-12 bg-indigo-500/20 rounded-full flex items-center justify-center font-display font-bold text-xl text-indigo-400 border border-indigo-500/30">
-                          {scene.sceneNumber}
+                {/* ── MODO: GRADE SOMENTE IMAGENS ── */}
+                {viewMode === 'grid' && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {generatedData.scenes.map((scene: any, idx: number) => {
+                      const key = `scene_${idx}`;
+                      const status = sceneImageStatus[key];
+                      const imgUrl = sceneImages[key];
+                      return (
+                        <div key={idx} className="group relative rounded-2xl overflow-hidden border border-slate-800 hover:border-indigo-500 transition-all shadow-lg cursor-pointer" onClick={() => setActiveSceneIndex(idx)}>
+                          <div className="aspect-video w-full bg-slate-950 relative">
+                            {status === 'ready' && imgUrl ? (
+                              <img src={imgUrl} alt={`Cena ${idx+1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            ) : status === 'error' ? (
+                              <img src={`https://image.pollinations.ai/prompt/${encodeURIComponent(scene.imagePrompt)}?model=flux&width=400&height=225&nologo=true`} alt={`Cena ${idx+1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-slate-950">
+                                <div className="animate-spin w-6 h-6 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full" />
+                                <span className="text-[9px] text-slate-600 uppercase tracking-widest">Gerando...</span>
+                              </div>
+                            )}
+                            <div className="absolute top-2 left-2 w-6 h-6 bg-black/80 backdrop-blur-md rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-white/10">{scene.sceneNumber}</div>
+                          </div>
+                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <p className="text-[10px] text-slate-300 line-clamp-2 leading-relaxed">{scene.setting}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-1">Cenário</h3>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── MODO: IMAGENS + PROMPTS ── */}
+                {viewMode === 'grid-full' && (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {generatedData.scenes.map((scene: any, idx: number) => {
+                      const key = `scene_${idx}`;
+                      const status = sceneImageStatus[key];
+                      const imgUrl = sceneImages[key];
+                      return (
+                        <div key={idx} className="bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 hover:border-slate-600 transition-all shadow-xl flex flex-col">
+                          {/* Imagem */}
+                          <div className="aspect-video w-full bg-slate-950 relative group">
+                            {status === 'ready' && imgUrl ? (
+                              <img src={imgUrl} alt={`Cena ${idx+1}`} className="w-full h-full object-cover" />
+                            ) : status === 'error' ? (
+                              <img src={`https://image.pollinations.ai/prompt/${encodeURIComponent(scene.imagePrompt)}?model=flux&width=800&height=450&nologo=true`} alt={`Cena ${idx+1}`} className="w-full h-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                                <div className="animate-spin w-7 h-7 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full" />
+                                <span className="text-[9px] text-slate-600 uppercase tracking-widest animate-pulse">Nano Banana 2 Gerando...</span>
+                              </div>
+                            )}
+                            <div className="absolute top-3 left-3 flex items-center gap-2">
+                              <div className="w-7 h-7 bg-black/80 backdrop-blur-md rounded-full flex items-center justify-center text-[11px] font-bold text-white border border-white/10">{scene.sceneNumber}</div>
+                              <span className="text-[10px] font-bold text-white/80 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full truncate max-w-[160px]">{scene.setting}</span>
+                            </div>
+                          </div>
+                          {/* Prompts */}
+                          <div className="p-4 flex flex-col gap-3 flex-1">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Image Prompt</label>
+                                <button onClick={() => copyToClipboard(scene.imagePrompt)} className="p-1 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"><Copy className="w-3 h-3" /></button>
+                              </div>
+                              <textarea value={scene.imagePrompt} onChange={(e) => handleEditScene(idx, 'imagePrompt', e.target.value)} className="w-full p-3 bg-slate-950 text-slate-300 rounded-xl text-xs font-mono leading-relaxed border border-slate-800 focus:border-cyan-500 focus:outline-none resize-y min-h-[80px]" />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-1"><Video className="w-3 h-3" /> Video Prompt ({videoAI})</label>
+                                <button onClick={() => copyToClipboard(`${scene.videoPrompt} Speech (PT-BR): "${scene.actionAndDialogue}"`)} className="p-1 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"><Copy className="w-3 h-3" /></button>
+                              </div>
+                              <textarea value={scene.videoPrompt} onChange={(e) => handleEditScene(idx, 'videoPrompt', e.target.value)} className="w-full p-3 bg-slate-950 text-slate-300 rounded-xl text-xs font-mono leading-relaxed border border-slate-800 focus:border-indigo-500 focus:outline-none resize-y min-h-[80px]" />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── MODO: SÓ PROMPTS (LISTA) ── */}
+                {viewMode === 'list' && (
+                  <div className="space-y-6">
+                    {generatedData.scenes.map((scene: any, index: number) => (
+                      <div key={index} className="bg-slate-900 rounded-2xl p-6 shadow-xl border border-slate-800">
+                        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-800">
+                          <div className="w-10 h-10 bg-indigo-500/20 rounded-full flex items-center justify-center font-display font-bold text-lg text-indigo-400 border border-indigo-500/30 shrink-0">{scene.sceneNumber}</div>
+                          <input value={scene.setting} onChange={(e) => handleEditScene(index, 'setting', e.target.value)} className="text-base font-bold text-white bg-transparent border-b border-transparent hover:border-slate-700 focus:border-indigo-500 focus:outline-none w-full transition-colors" />
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Image Prompt</label>
+                              <button onClick={() => copyToClipboard(scene.imagePrompt)} className="p-1 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"><Copy className="w-3 h-3" /></button>
+                            </div>
+                            <textarea value={scene.imagePrompt} onChange={(e) => handleEditScene(index, 'imagePrompt', e.target.value)} className="w-full p-3 bg-slate-950 text-slate-300 rounded-xl text-xs font-mono leading-relaxed border border-slate-800 focus:border-cyan-500 focus:outline-none resize-y min-h-[100px]" />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-1"><Video className="w-3 h-3" /> Video Prompt ({videoAI})</label>
+                              <button onClick={() => copyToClipboard(`${scene.videoPrompt} Speech (PT-BR): "${scene.actionAndDialogue}"`)} className="p-1 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"><Copy className="w-3 h-3" /></button>
+                            </div>
+                            <textarea value={scene.videoPrompt} onChange={(e) => handleEditScene(index, 'videoPrompt', e.target.value)} className="w-full p-3 bg-slate-950 text-slate-300 rounded-xl text-xs font-mono leading-relaxed border border-slate-800 focus:border-indigo-500 focus:outline-none resize-y min-h-[100px]" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {false && generatedData.scenes.length > 0 && (
+                  <div className="flex flex-col xl:flex-row gap-8">
+                    {/* Left Panel: Active Scene Large Preview */}
+                    <div className="flex-1 space-y-6">
+                      <div className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center font-display font-bold text-lg text-white shadow-lg shadow-indigo-500/30 shrink-0">
+                            {generatedData.scenes[activeSceneIndex].sceneNumber}
+                          </div>
                           <input 
-                            value={scene.setting}
-                            onChange={(e) => handleEditScene(index, 'setting', e.target.value)}
-                            className="text-lg font-bold text-white bg-transparent border-b border-transparent hover:border-slate-700 focus:border-indigo-500 focus:outline-none w-full transition-colors"
+                            value={generatedData.scenes[activeSceneIndex].setting}
+                            onChange={(e) => handleEditScene(activeSceneIndex, 'setting', e.target.value)}
+                            className="text-2xl font-bold text-white bg-transparent border-b border-transparent hover:border-slate-700 focus:border-indigo-500 focus:outline-none w-full transition-colors truncate"
                           />
                         </div>
-                      </div>
+                        
+                        {/* Image Preview (Flow / HD Cache) */}
+                        {(() => {
+                          const sceneKey = `scene_${activeSceneIndex}`;
+                          const status = sceneImageStatus[sceneKey];
+                          const imgUrl = sceneImages[sceneKey];
+                          return (
+                            <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden mb-6 border border-slate-800 shadow-2xl relative group">
+                              {/* Loading skeleton */}
+                              {(status === 'loading' || status === 'pending') && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 z-10">
+                                  <div className="animate-spin w-10 h-10 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full" />
+                                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest animate-pulse">Nano Banana 2 Gerando...</p>
+                                </div>
+                              )}
+                              {/* Imagem salva no HD pelo Flow */}
+                              {status === 'ready' && imgUrl && (
+                                <img
+                                  key={`flow-preview-${activeSceneIndex}`}
+                                  src={imgUrl}
+                                  alt={`Cena ${activeSceneIndex + 1}`}
+                                  className="w-full h-full object-cover z-10 relative"
+                                />
+                              )}
+                              {/* Fallback: Pollinations se o Flow falhar ou não estiver disponível */}
+                              {status === 'error' && (
+                                <img
+                                  key={`fallback-${activeSceneIndex}`}
+                                  src={`https://image.pollinations.ai/prompt/${encodeURIComponent(generatedData.scenes[activeSceneIndex].imagePrompt)}?model=flux&width=1280&height=720&nologo=true`}
+                                  alt={`Cena ${activeSceneIndex + 1}`}
+                                  className="w-full h-full object-cover z-10 relative bg-slate-900"
+                                  loading="lazy"
+                                />
+                              )}
+                              {/* Badge de origem */}
+                              <div className="absolute top-4 right-4 px-3 py-1 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-widest rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                {status === 'ready' ? '🌊 NANO BANANA 2 · FLOW' : status === 'error' ? '⚡ FLUX FALLBACK' : '⏳ GERANDO...'}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
-                      {/* Action & Dialogue */}
-                      <div className="mb-8">
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
-                          <BookOpen className="w-4 h-4 text-indigo-400" /> Ação e Diálogos
-                        </h4>
-                        <textarea
-                          value={scene.actionAndDialogue}
-                          onChange={(e) => handleEditScene(index, 'actionAndDialogue', e.target.value)}
-                          className="w-full p-6 bg-slate-950 rounded-2xl text-slate-300 leading-relaxed text-lg border border-slate-800 focus:border-indigo-500 focus:outline-none resize-y min-h-[150px]"
-                        />
-                      </div>
-
-                      {/* Prompts Grid */}
-                      <div className="grid md:grid-cols-2 gap-6">
-                        {/* Image Prompt */}
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                              <ImageIcon className="w-4 h-4 text-cyan-400" /> Prompt Nano Banana
-                            </h4>
-                            <button 
-                              onClick={() => copyToClipboard(scene.imagePrompt)}
-                              className="text-slate-400 hover:text-white transition-colors p-2 rounded-full hover:bg-slate-800"
-                              title="Copiar Prompt de Imagem"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <textarea
-                            value={scene.imagePrompt}
-                            onChange={(e) => handleEditScene(index, 'imagePrompt', e.target.value)}
-                            className="w-full p-4 bg-slate-950 text-slate-300 rounded-2xl text-sm font-mono leading-relaxed h-full min-h-[120px] border border-slate-800 focus:border-cyan-500 focus:outline-none resize-y"
-                          />
+                        {/* Story Action / Narrative */}
+                        <div className="mb-6">
+                           <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-2 flex items-center gap-2">
+                             <BookOpen className="w-4 h-4" /> Ação e Diálogos
+                           </h4>
+                           <textarea
+                             value={generatedData.scenes[activeSceneIndex].actionAndDialogue}
+                             onChange={(e) => handleEditScene(activeSceneIndex, 'actionAndDialogue', e.target.value)}
+                             className="w-full p-4 bg-slate-950 rounded-xl text-slate-300 leading-relaxed text-sm border border-slate-800 focus:border-indigo-500 focus:outline-none resize-y min-h-[100px]"
+                           />
                         </div>
 
-                        {/* Video Prompt */}
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                              <Video className="w-4 h-4 text-indigo-400" /> Prompt {videoAI} ({duration})
-                            </h4>
-                            <button 
-                              onClick={() => copyToClipboard(`${scene.videoPrompt} Speech (PT-BR): "${scene.actionAndDialogue}"`)}
-                              className="text-slate-400 hover:text-white transition-colors p-2 rounded-full hover:bg-slate-800"
-                              title="Copiar Prompt de Vídeo com Diálogos"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <textarea
-                            value={scene.videoPrompt}
-                            onChange={(e) => handleEditScene(index, 'videoPrompt', e.target.value)}
-                            className="w-full p-4 bg-slate-950 text-slate-300 rounded-2xl text-sm font-mono leading-relaxed h-full min-h-[120px] border border-slate-800 focus:border-indigo-500 focus:outline-none resize-y"
-                          />
+                        {/* Collapsible Prompts Editor */}
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 flex items-center gap-1">
+                               <ImageIcon className="w-3 h-3" /> Image Prompt
+                             </label>
+                             <textarea
+                               value={generatedData.scenes[activeSceneIndex].imagePrompt}
+                               onChange={(e) => handleEditScene(activeSceneIndex, 'imagePrompt', e.target.value)}
+                               className="w-full p-3 bg-slate-950 text-slate-400 rounded-xl text-xs font-mono h-24 border border-slate-800 focus:border-cyan-500 focus:outline-none resize-none"
+                             />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-1">
+                               <Video className="w-3 h-3" /> Video Prompt
+                             </label>
+                             <textarea
+                               value={generatedData.scenes[activeSceneIndex].videoPrompt}
+                               onChange={(e) => handleEditScene(activeSceneIndex, 'videoPrompt', e.target.value)}
+                               className="w-full p-3 bg-slate-950 text-slate-400 rounded-xl text-xs font-mono h-24 border border-slate-800 focus:border-indigo-500 focus:outline-none resize-none"
+                             />
+                           </div>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    {/* Right Panel: Storyboard Thumbnails Grid */}
+                    <div className="w-full xl:w-[320px] shrink-0 bg-slate-900/50 rounded-3xl p-4 border border-slate-800 overflow-y-auto max-h-[800px] flex flex-col gap-3">
+                       <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 px-2 py-1 mb-2">Sequência ({generatedData.scenes.length} Cenas)</h3>
+                       
+                       <div className="grid grid-cols-2 xl:grid-cols-1 gap-3">
+                         {generatedData.scenes.map((scene: any, idx: number) => (
+                           <button
+                             key={idx}
+                             onClick={() => setActiveSceneIndex(idx)}
+                             className={`text-left rounded-xl overflow-hidden border-2 transition-all relative group flex flex-col ${activeSceneIndex === idx ? 'border-indigo-500 ring-4 ring-indigo-500/20 shadow-lg shadow-indigo-500/20' : 'border-slate-800 hover:border-slate-600'}`}
+                           >
+                              <div className="aspect-video w-full bg-slate-950 relative">
+                                {(() => {
+                                  const key = `scene_${idx}`;
+                                  const status = sceneImageStatus[key];
+                                  const imgUrl = sceneImages[key];
+                                  if (status === 'ready' && imgUrl) {
+                                    return <img src={imgUrl} alt={`Thumb ${idx}`} className={`w-full h-full object-cover transition-opacity ${activeSceneIndex === idx ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} />;
+                                  } else if (status === 'error') {
+                                    return <img src={`https://image.pollinations.ai/prompt/${encodeURIComponent(scene.imagePrompt)}?model=flux&width=400&height=225&nologo=true`} alt={`Thumb ${idx}`} className={`w-full h-full object-cover transition-opacity ${activeSceneIndex === idx ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} loading="lazy" />;
+                                  } else {
+                                    return (
+                                      <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                                        <div className="animate-spin w-5 h-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full" />
+                                      </div>
+                                    );
+                                  }
+                                })()}
+                                <div className="absolute top-2 left-2 w-6 h-6 bg-black/80 backdrop-blur-md rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-white/10 shadow-xl">
+                                  {scene.sceneNumber}
+                                </div>
+                              </div>
+                              <div className={`p-3 bg-slate-900 border-t ${activeSceneIndex === idx ? 'border-indigo-500/30' : 'border-slate-800'}`}>
+                                <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
+                                  {scene.setting}
+                                </p>
+                              </div>
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>

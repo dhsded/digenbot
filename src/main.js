@@ -12,8 +12,9 @@ let editorView;
 let toolView;
 let espiaoView;
 let scraperView;
+let geminiView;
 let currentSidebarWidth = 250;
-let loadedUrls = { digen: false, flow: false, meta: false, video_editor: false, espiao: false };
+let loadedUrls = { digen: false, flow: false, meta: false, video_editor: false, espiao: false, gemini: false };
 const runningTools = {};
 
 // ─── Dev Server Manager ───────────────────────────────────────────────────────
@@ -98,7 +99,7 @@ function createWindow() {
   uiWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: 'DM Gerador DIGEN',
+    title: 'Dark Media v' + require('../package.json').version,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload_ui.js'),
@@ -198,6 +199,23 @@ function createWindow() {
     }
   });
 
+  geminiView = new BrowserView({
+    webPreferences: {
+      preload: path.join(__dirname, 'preload_gemini.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      javascript: true,
+      backgroundThrottling: false,
+      // Falso Chrome UA para contornar o bloqueio de segurança no login do Google e permitir persistência de cookies
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    }
+  });
+
+  geminiView.webContents.setWindowOpenHandler(({ url }) => {
+    geminiView.webContents.loadURL(url);
+    return { action: 'deny' };
+  });
+
   digenView.setBackgroundColor('#ffffff');
   flowView.setBackgroundColor('#ffffff');
   metaView.setBackgroundColor('#ffffff');
@@ -283,6 +301,14 @@ function createWindow() {
       uiWindow.setBrowserView(espiaoView);
       espiaoView.setBounds({ x: sidebarWidth, y: 0, width: bounds.width - sidebarWidth, height: bounds.height - footerHeight });
       espiaoView.setAutoResize({ width: true, height: true, vertical: true });
+    } else if (tab === 'gemini') {
+      if (!loadedUrls.gemini) {
+        geminiView.webContents.loadURL('https://gemini.google.com/app');
+        loadedUrls.gemini = true;
+      }
+      uiWindow.setBrowserView(geminiView);
+      geminiView.setBounds({ x: sidebarWidth, y: navHeight, width: bounds.width - sidebarWidth, height: bounds.height - footerHeight - navHeight });
+      geminiView.setAutoResize({ width: true, height: true, vertical: true });
     } else {
       uiWindow.setBrowserView(null);
     }
@@ -343,6 +369,10 @@ function createWindow() {
             if (view === digenView) view.webContents.loadURL('https://digen.ai/create');
             else if (view === flowView) view.webContents.loadURL('https://labs.google/fx/pt/tools/flow');
             else if (view === metaView) view.webContents.loadURL('https://www.meta.ai/create?utm_source=facebook_bookmarks');
+            else if (view === geminiView) view.webContents.loadURL('https://gemini.google.com/app');
+            break;
+        case 'dump-dom':
+            view.webContents.send('extract-dom');
             break;
     }
   });
@@ -361,14 +391,18 @@ function createWindow() {
   });
 
   ipcMain.on('queue-task', (event, taskData) => {
-    console.log(`Main: Routing task to ${taskData.platform.toUpperCase()} view:`, taskData.prompt);
+    console.log(`Main: Routing task to ${taskData.platform.toUpperCase()} view:`, taskData.id || taskData.prompt);
     const routeTask = () => {
       if (taskData.platform === 'flow') {
           flowView.webContents.send('execute-flow-task', taskData);
+          // Notifica o UI para mostrar o Flow tab visualmente (robô trabalhando)
+          if (uiWindow) uiWindow.webContents.send('engine-active', { engine: 'flow' });
       } else if (taskData.platform === 'meta') {
           metaView.webContents.send('execute-meta-task', taskData);
+          if (uiWindow) uiWindow.webContents.send('engine-active', { engine: 'meta' });
       } else {
           digenView.webContents.send('execute-digen-task', taskData);
+          if (uiWindow) uiWindow.webContents.send('engine-active', { engine: 'digen' });
       }
     };
 
@@ -383,11 +417,45 @@ function createWindow() {
     if (!loadedUrls[platformKey]) {
       loadedUrls[platformKey] = true;
       targetView.webContents.once('did-finish-load', () => {
-        routeTask();
+        // Aguarda hydratação antes de disparar o robô
+        setTimeout(routeTask, 3000);
       });
       targetView.webContents.loadURL(urlToLoad);
     } else {
       routeTask();
+    }
+  });
+
+  // Permite navegar para uma aba de motor manualmente (para ver o robô)
+  ipcMain.on('show-engine-tab', (event, engine) => {
+    const bounds = uiWindow.getContentBounds();
+    const footerHeight = 28;
+    const navHeight = 40;
+    const sw = currentSidebarWidth;
+    if (engine === 'flow') {
+      if (!loadedUrls.flow) {
+        flowView.webContents.loadURL('https://labs.google/fx/pt/tools/flow');
+        loadedUrls.flow = true;
+      }
+      uiWindow.setBrowserView(flowView);
+      flowView.setBounds({ x: sw, y: navHeight, width: bounds.width - sw, height: bounds.height - footerHeight - navHeight });
+      flowView.setAutoResize({ width: true, height: true });
+    } else if (engine === 'digen') {
+      if (!loadedUrls.digen) {
+        digenView.webContents.loadURL('https://digen.ai/create');
+        loadedUrls.digen = true;
+      }
+      uiWindow.setBrowserView(digenView);
+      digenView.setBounds({ x: sw, y: navHeight, width: bounds.width - sw, height: bounds.height - footerHeight - navHeight });
+      digenView.setAutoResize({ width: true, height: true });
+    } else if (engine === 'meta') {
+      if (!loadedUrls.meta) {
+        metaView.webContents.loadURL('https://www.meta.ai/create?utm_source=facebook_bookmarks');
+        loadedUrls.meta = true;
+      }
+      uiWindow.setBrowserView(metaView);
+      metaView.setBounds({ x: sw, y: navHeight, width: bounds.width - sw, height: bounds.height - footerHeight - navHeight });
+      metaView.setAutoResize({ width: true, height: true });
     }
   });
 
@@ -419,6 +487,142 @@ function createWindow() {
     } catch(e) {
       console.error("Falha ao salvar DOM", e);
     }
+  });
+
+  // ── Storyboard Storage Management ────────────────────────────────────────
+  const getStoryboardDir = () => path.join(app.getPath('userData'), 'Storyboard_Projects');
+
+  // Garantir que a pasta exista ao iniciar
+  const storyboardDir = getStoryboardDir();
+  if (!fs.existsSync(storyboardDir)) fs.mkdirSync(storyboardDir, { recursive: true });
+
+  // Salvar imagem do Storyboard do Flow
+  ipcMain.on('save-storyboard-image', async (event, data) => {
+    try {
+      const { taskId, sceneId, src } = data;
+
+      // Erro notificado pelo robô (sem src)
+      if (data.error) {
+        const payload = { taskId, sceneId, error: true };
+        if (toolView) toolView.webContents.send('storyboard-image-ready', payload);
+        return;
+      }
+
+      const dirPath = getStoryboardDir();
+      if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+
+      const fileName = `scene_${sceneId || taskId}_${Date.now()}.png`;
+      const filePath = path.join(dirPath, fileName);
+
+      if (src && src.startsWith('data:image')) {
+        fs.writeFileSync(filePath, src.split(',')[1], 'base64');
+      } else if (src) {
+        const https = require('https');
+        const http = require('http');
+        const lib = src.startsWith('https') ? https : http;
+        await new Promise((resolve, reject) => {
+          lib.get(src, (response) => {
+            if (response.statusCode !== 200) { reject(new Error(`HTTP ${response.statusCode}`)); return; }
+            const file = fs.createWriteStream(filePath);
+            response.pipe(file);
+            file.on('finish', () => { file.close(); resolve(); });
+            file.on('error', (err) => { fs.unlink(filePath, () => {}); reject(err); });
+          }).on('error', reject);
+        });
+      }
+
+      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+      const payload = { taskId, sceneId, url: fileUrl };
+      if (toolView) toolView.webContents.send('storyboard-image-ready', payload);
+      if (uiWindow) uiWindow.webContents.send('storyboard-image-ready', payload);
+      console.log(`[Storyboard] Salvo: ${fileName}`);
+
+    } catch (e) {
+      console.error("Erro salvando storyboard:", e);
+      const payload = { taskId: data.taskId, sceneId: data.sceneId, error: true };
+      if (toolView) toolView.webContents.send('storyboard-image-ready', payload);
+    }
+  });
+
+  ipcMain.handle('get-storyboard-path', () => getStoryboardDir());
+
+  ipcMain.on('open-storyboard-folder', () => {
+    const { shell } = require('electron');
+    const dir = getStoryboardDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    shell.openPath(dir);
+  });
+
+  ipcMain.handle('cleanup-storyboard', (event, days) => {
+    try {
+      const dir = getStoryboardDir();
+      if (!fs.existsSync(dir)) return { deleted: 0 };
+      const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+      let deleted = 0;
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const entryPath = path.join(dir, entry.name);
+        const stat = fs.statSync(entryPath);
+        if (stat.mtimeMs < cutoff) {
+          if (entry.isDirectory()) fs.rmdirSync(entryPath, { recursive: true });
+          else fs.unlinkSync(entryPath);
+          deleted++;
+        }
+      }
+      console.log(`[Storyboard] Limpeza: ${deleted} arquivo(s) removido(s) (>${days} dias)`);
+      return { deleted };
+    } catch (e) {
+      console.error('[Storyboard] Erro na limpeza:', e);
+      return { deleted: 0, error: e.message };
+    }
+  });
+
+  // Executar limpeza automática ao iniciar se configurada
+  const runAutoCleanup = () => {
+    try {
+      const settingsRaw = fs.existsSync(path.join(app.getPath('userData'), 'settings.json'))
+        ? fs.readFileSync(path.join(app.getPath('userData'), 'settings.json'), 'utf-8') : '{}';
+      const settings = JSON.parse(settingsRaw);
+      if (settings.storyboardAutoCleanup && settings.storyboardCleanupDays) {
+        const lastCleanup = settings.lastCleanupDate || 0;
+        const daysSinceCleanup = (Date.now() - lastCleanup) / (24 * 60 * 60 * 1000);
+        if (daysSinceCleanup >= 1) { // Roda uma vez por dia no máximo
+          const dir = getStoryboardDir();
+          if (fs.existsSync(dir)) {
+            const cutoff = Date.now() - (settings.storyboardCleanupDays * 24 * 60 * 60 * 1000);
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const p = path.join(dir, entry.name);
+              if (fs.statSync(p).mtimeMs < cutoff) {
+                if (entry.isDirectory()) fs.rmdirSync(p, { recursive: true });
+                else fs.unlinkSync(p);
+              }
+            }
+          }
+          settings.lastCleanupDate = Date.now();
+          fs.writeFileSync(path.join(app.getPath('userData'), 'settings.json'), JSON.stringify(settings));
+          console.log(`[Storyboard] Auto-limpeza executada (>${settings.storyboardCleanupDays} dias)`);
+        }
+      }
+    } catch(e) { /* silencioso */ }
+  };
+  setTimeout(runAutoCleanup, 5000); // Roda 5s após o boot
+
+  ipcMain.handle('save-app-settings', (event, settings) => {
+    try {
+      const p = path.join(app.getPath('userData'), 'settings.json');
+      let existing = {};
+      if (fs.existsSync(p)) existing = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      const merged = { ...existing, ...settings };
+      fs.writeFileSync(p, JSON.stringify(merged));
+      return { ok: true };
+    } catch(e) { return { ok: false, error: e.message }; }
+  });
+
+  ipcMain.handle('load-app-settings', () => {
+    try {
+      const p = path.join(app.getPath('userData'), 'settings.json');
+      return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf-8')) : {};
+    } catch(e) { return {}; }
   });
 
   // Silent download handler

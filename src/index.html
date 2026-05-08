@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DM Gerador DIGEN</title>
+    <title>Dark Media v1.0.0</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -52,7 +52,7 @@
         body {
             background-color: var(--bg-color);
             color: var(--text-main);
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
             flex-direction: row;
             background: var(--bg-gradient);
@@ -627,6 +627,7 @@
         <button id="btnBrowserForward" style="background: var(--input-bg); border: 1px solid var(--surface-border); color: var(--text-main); cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--input-bg)'">Avançar ▶</button>
         <button id="btnBrowserReload" style="background: var(--input-bg); border: 1px solid var(--surface-border); color: var(--text-main); cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--input-bg)'">↻ Atualizar</button>
         <button id="btnBrowserHome" style="background: var(--input-bg); border: 1px solid var(--surface-border); color: var(--text-main); cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--input-bg)'">🏠 Início</button>
+        <button id="btnDumpDom" style="background: #10b981; border: 1px solid #059669; color: white; cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: 0.2s; font-weight: bold; margin-left: auto;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">🕵️ Extrair DOM</button>
     </div>
 
     <div class="sidebar" id="sidebar">
@@ -637,8 +638,6 @@
         </button>
         <button class="tab-btn active" id="tabPanel"><span class="tab-icon">🏠</span> <span class="tab-text">Painel Central</span></button>
         <button class="tab-btn" id="tabCharacters"><span class="tab-icon">👤</span> <span class="tab-text">Cofre de Personagens</span></button>
-        
-        <button class="tab-btn" id="tabGeradores"><span class="tab-icon">⚡</span> <span class="tab-text">Geradores</span></button>
         <button class="tab-btn" id="tabStudio"><span class="tab-icon">✨</span> <span class="tab-text">Studio</span></button>
         <button class="tab-btn" id="tabVideoEditor"><span class="tab-icon">🎬</span> <span class="tab-text">Editor de Vídeo</span></button>
         <button class="tab-btn" id="tabEspiao"><span class="tab-icon">🕵️</span> <span class="tab-text">Espião</span></button>
@@ -904,39 +903,6 @@
         </div>
     </div>
 
-    <!-- GERADORES HUB PANEL -->
-    <div class="content-area hidden" id="geradoresArea">
-        <h1>⚡ Central de Geradores</h1>
-        <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 15px;">Selecione uma inteligência artificial para iniciar a criação.</p>
-        
-        <div class="hub-grid">
-            <div class="generator-card" id="cardDigen">
-                <div class="card-icon">🌐</div>
-                <div class="card-title">DIGEN</div>
-                <div class="card-desc">Criação de avatares super-realistas e locuções imersivas em vídeos.</div>
-            </div>
-            
-            <div class="generator-card" id="cardFlow">
-                <div class="card-icon">🌊</div>
-                <div class="card-title">Google Flow</div>
-                <div class="card-desc">Geração de mídia avançada utilizando a plataforma Labs do Google.</div>
-            </div>
-            
-            <div class="generator-card" id="cardMeta">
-                <div class="card-icon">♾️</div>
-                <div class="card-title">Meta AI</div>
-                <div class="card-desc">Geração contínua de imagens de alta qualidade via modelo da Meta.</div>
-            </div>
-            
-            <div class="generator-card disabled-card">
-                <div class="badge-soon">EM BREVE</div>
-                <div class="card-icon">✨</div>
-                <div class="card-title">GROK AI</div>
-                <div class="card-desc">Integração xAI para capacidades criativas incomparáveis.</div>
-            </div>
-        </div>
-    </div>
-
     <!-- STUDIO HUB PANEL -->
     <div class="content-area hidden" id="studioArea">
         <h1>✨ Studio de Ferramentas</h1>
@@ -949,38 +915,131 @@
 
     <!-- SETTINGS PANEL -->
     <div class="content-area hidden" id="settingsArea">
-        <h1>🛠️ Configurações e Chaves API</h1>
-        <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 15px;">Gerencie credenciais e preferências de interface.</p>
-        
-        <div class="glass-panel" style="max-width: 600px; margin-bottom: 20px;">
-            <h3>Preferências de Interface</h3>
-            <div style="display: flex; gap: 10px; margin-top: 15px;">
-                <button id="themeToggleBtn" class="action-btn" style="flex: 1; padding: 10px; background: var(--input-bg); color: var(--text-main); border: 1px solid var(--surface-border);">
-                    <span class="tab-icon">🌗</span> <span class="tab-text">Tema Escuro</span>
-                </button>
-                <button id="toggleLogBtn" class="action-btn" style="flex: 1; padding: 10px; background: var(--input-bg); color: var(--text-main); border: 1px solid var(--surface-border);">
-                    <span class="tab-icon">📝</span> <span class="tab-text">Ocultar Log</span>
-                </button>
-            </div>
-        </div>
-
-        <div class="glass-panel" style="max-width: 600px;">
-            <h3>Chaves de API</h3>
-            <div class="form-group" style="margin-top: 15px;">
-                <label>Google Gemini API Keys (Lista .txt)</label>
-                <div style="border: 2px dashed var(--surface-border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; position: relative;" id="apiKeyUploadBox" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--surface-border)'">
-                    <input type="file" id="geminiApiKeyFile" accept=".txt" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
-                    <div style="font-size: 24px; margin-bottom: 10px;">📄</div>
-                    <div style="font-weight: 600; color: var(--primary); margin-bottom: 5px;">Clique ou arraste um arquivo .txt</div>
-                    <div style="font-size: 11px; color: var(--text-muted);">Uma chave por linha</div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                    <span style="font-size: 12px; color: var(--text-muted);" id="apiKeyCountDisplay">0 chaves carregadas</span>
-                    <button id="clearApiKeysBtn" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: none;">Limpar Chaves</button>
-                </div>
-            </div>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 100%; max-width: 800px; text-align: left;">
+                <h1>🛠️ Configurações Globais</h1>
+            <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 15px;">Gerencie credenciais, preferências de interface e motores de fundo.</p>
             
-            <button class="action-btn" id="saveSettingsBtn" style="margin-top: 20px;">💾 Salvar Configurações</button>
+            <div class="glass-panel" style="width: 100%; padding: 30px;">
+                <!-- SECTION: PREFERENCES -->
+                <h3>Preferências de Interface</h3>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button id="themeToggleBtn" class="action-btn" style="flex: 1; padding: 10px; background: var(--input-bg); color: var(--text-main); border: 1px solid var(--surface-border);">
+                        <span class="tab-icon">🌗</span> <span class="tab-text">Tema Escuro</span>
+                    </button>
+                    <button id="toggleLogBtn" class="action-btn" style="flex: 1; padding: 10px; background: var(--input-bg); color: var(--text-main); border: 1px solid var(--surface-border);">
+                        <span class="tab-icon">📝</span> <span class="tab-text">Ocultar Log</span>
+                    </button>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--surface-border); margin: 30px 0;">
+
+                <!-- SECTION: API KEYS -->
+                <h3>Chaves de API</h3>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Google Gemini API Keys (Lista .txt)</label>
+                    <div style="border: 2px dashed var(--surface-border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; position: relative;" id="apiKeyUploadBox" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--surface-border)'">
+                        <input type="file" id="geminiApiKeyFile" accept=".txt" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+                        <div style="font-size: 24px; margin-bottom: 10px;">📄</div>
+                        <div style="font-weight: 600; color: var(--primary); margin-bottom: 5px;">Clique ou arraste um arquivo .txt</div>
+                        <div style="font-size: 11px; color: var(--text-muted);">Uma chave por linha</div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                        <span style="font-size: 12px; color: var(--text-muted);" id="apiKeyCountDisplay">0 chaves carregadas</span>
+                        <button id="clearApiKeysBtn" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; display: none;">Limpar Chaves</button>
+                    </div>
+                </div>
+                
+                <button class="action-btn" id="saveSettingsBtn" style="margin-top: 10px; max-width: 300px;">💾 Salvar Configurações</button>
+
+                <hr style="border: none; border-top: 1px solid var(--surface-border); margin: 30px 0;">
+
+                <!-- SECTION: STORYBOARD STORAGE -->
+                <h3>Armazenamento de Projetos</h3>
+                <p style="color: var(--text-muted); font-size: 13px; margin-top: 5px; margin-bottom: 20px;">
+                    Imagens do Storyboard geradas pelo Flow são salvas nesta pasta local. Configure a limpeza automática para evitar acúmulo.
+                </p>
+
+                <!-- Pasta atual -->
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 14px; background: var(--input-bg); border: 1px solid var(--surface-border); border-radius: 10px;">
+                    <span style="font-size: 22px;">📁</span>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px;">Pasta de Storyboards</div>
+                        <code id="storyboardPathDisplay" style="font-size: 12px; color: var(--primary); word-break: break-all;">Carregando...</code>
+                    </div>
+                    <button id="openStoryboardFolderBtn" style="background: var(--primary); color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                        Abrir Pasta
+                    </button>
+                </div>
+
+                <!-- Limpeza automática -->
+                <div style="padding: 16px; background: var(--input-bg); border: 1px solid var(--surface-border); border-radius: 10px; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                        <div>
+                            <span style="font-size: 14px; font-weight: 600; color: var(--text-main);">🗑️ Limpeza Automática</span>
+                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">Remove arquivos mais antigos que o período configurado</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="storyboardAutoCleanupToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div id="cleanupPeriodRow" style="display: none; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <span style="font-size: 13px; color: var(--text-muted);">Apagar arquivos com mais de:</span>
+                        <div class="mode-selector" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+                            <label><input type="radio" name="cleanupDays" value="7"> 7 dias</label>
+                            <label><input type="radio" name="cleanupDays" value="15" checked> 15 dias</label>
+                            <label><input type="radio" name="cleanupDays" value="30"> 30 dias</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Limpeza manual -->
+                <div style="display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap;">
+                    <button id="cleanupNowBtn" style="background: #ef4444; color: white; border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
+                        🗑️ Limpar Agora
+                    </button>
+                    <button id="saveStorageSettingsBtn" style="background: var(--primary); color: white; border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                        💾 Salvar Configurações de Armazenamento
+                    </button>
+                </div>
+                <div id="storageStatusMsg" style="font-size: 12px; color: var(--success); min-height: 18px;"></div>
+
+                <hr style="border: none; border-top: 1px solid var(--surface-border); margin: 30px 0;">
+
+                <!-- SECTION: AI ENGINES -->
+                <h3>Motores de Inteligência Artificial</h3>
+                <p style="color: var(--text-muted); font-size: 13px; margin-top: 5px; margin-bottom: 20px;">
+                    As ferramentas de automação operam em segundo plano usando sessões ativas do navegador. 
+                    Certifique-se de estar logado para que o motor possa gerar as mídias. Clique para acessar o navegador oculto do respectivo motor:
+                </p>
+                <div class="hub-grid">
+                    <div class="generator-card" id="cardDigen" onclick="window.api?.showEngineTab('digen')" title="Clique para abrir o Digen e ver o robô em ação">
+                        <div class="card-icon">🌐</div>
+                        <div class="card-title">DIGEN</div>
+                        <div class="card-desc">Avatares super-realistas e locuções imersivas.</div>
+                    </div>
+                    
+                    <div class="generator-card" id="cardFlow" onclick="window.api?.showEngineTab('flow')" title="Clique para abrir o Google Flow e ver o robô gerando imagens">
+                        <div class="card-icon">🌊</div>
+                        <div class="card-title">Google Flow</div>
+                        <div class="card-desc">Geração de storyboard (Nano Banana 2).</div>
+                    </div>
+                    
+                    <div class="generator-card" id="cardMeta" onclick="window.api?.showEngineTab('meta')" title="Clique para abrir o Meta AI e ver o robô em ação">
+                        <div class="card-icon">♾️</div>
+                        <div class="card-title">Meta AI</div>
+                        <div class="card-desc">Geração de imagens consistentes.</div>
+                    </div>
+                    
+                    <div class="generator-card disabled-card" id="cardGrok" title="Em breve — Integração xAI">
+                        <div class="badge-soon" style="position: absolute; top: -10px; right: -10px; background: #f59e0b; color: white; padding: 4px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">EM BREVE</div>
+                        <div class="card-icon">✨</div>
+                        <div class="card-title">Grok AI</div>
+                        <div class="card-desc">Integração xAI para capacidades criativas incomparáveis.</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
